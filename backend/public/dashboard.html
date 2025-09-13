@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>WardrobeIQ — Dashboard</title>
+  <link rel="stylesheet" href="style.css" /> <!-- your main theme CSS -->
+  <link rel="stylesheet" href="dashboard.css" /> <!-- dashboard-only CSS below -->
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner container">
+      <a class="brand" href="index.html">
+        <img src="/assets/logo.png" alt="WardrobeIQ" class="brand-logo" />
+        <span class="brand-name" data-i18n="brandName">WardrobeIQ</span>
+      </a>
+
+      <div class="nav-actions">
+        <select id="languageSwitcher" class="select-lang" aria-label="Choose language"></select>
+        <button id="logoutBtn" data-i18n="logoutBtn">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="padding-top:110px;">
+    <section class="dashboard-section" id="weatherCard">
+      <p id="weatherInfo" data-i18n="weatherLoading">Loading weather...</p>
+      <div id="weatherDetails" style="margin-top:8px;color:var(--muted)"></div>
+    </section>
+
+    <section class="dashboard-section" id="wardrobeSection">
+      <h1 data-i18n="wardrobeTitle">Your Wardrobe</h1>
+      <div id="wardrobeItems" class="items-grid" data-i18n="loadingWardrobe">Loading wardrobe...</div>
+
+      <h3 id="addItemTitle" data-i18n="addTitle">Add New Item</h3>
+      <form id="addItemForm" class="add-item-form">
+        <input id="itemName" name="itemName" placeholder="Item name" data-i18n-placeholder="itemNamePlaceholder" required />
+        <input id="category" name="category" placeholder="Category (e.g., jacket, dress)" data-i18n-placeholder="categoryPlaceholder" />
+        <input id="imageFile" name="image" type="file" accept="image/*" />
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-primary" type="submit" data-i18n="addItemBtn">Add Item</button>
+          <button id="clearAdd" class="btn btn-ghost" type="button" data-i18n="clearBtn">Clear</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="dashboard-section" id="suggestionsSection">
+      <h2 id="suggestionTitle" data-i18n="suggestionsTitle">AI Outfit Suggestions</h2>
+      <div id="context-controls" style="margin: 10px 0;">
+  <select id="locationSelect">
+  <option value="">-- Select Location --</option>
+  <option value="office">Office</option>
+  <option value="beach">Beach</option>
+  <option value="home">Home</option>
+</select>
+
+<select id="occasionSelect">
+  <option value="">-- Select Occasion --</option>
+  <option value="formal">Formal</option>
+  <option value="party">Party</option>
+  <option value="casual">Casual</option>
+  <option value="wedding">Wedding</option>
+</select>
+
+<select id="purposeSelect">
+  <option value="">-- Select Purpose --</option>
+  <option value="workout">Workout</option>
+  <option value="travel">Travel</option>
+  <option value="date">Date</option>
+</select>
+<button id="applyFiltersBtn">Apply Filters</button>
+</div>
+
+      <div id="suggestions" class="items-grid" data-i18n="loadingSuggestions">Loading suggestions...</div>
+    </section>
+    <h2 data-i18n="historyTitle">Outfit History</h2>
+<div id="historyItems"><em>No history yet</em></div>
+
+    <button id="voiceCommandBtn" class="btn btn-primary" style="position:fixed;right:20px;bottom:20px" data-i18n="voiceBtn">🎤 Voice</button>
+    <div id="voiceStatus" class="voice-text"></div>
+  </main>
+
+  <script src="dashboard.js" defer></script>
+</body>
+</html>

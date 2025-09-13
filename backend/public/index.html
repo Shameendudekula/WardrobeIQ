@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>WardrobeIQ — Smart Style. Every Day.</title>
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+
+  <!-- Main CSS -->
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Social / Theme -->
+  <meta name="theme-color" content="#111827">
+</head>
+<body>
+
+  <!-- NAV -->
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="#">
+        <img src="assets/logo.png" alt="WardrobeIQ logo" class="brand-logo">
+        <span class="brand-name">WardrobeIQ</span>
+      </a>
+
+      <nav id="mainNav" class="nav-links" aria-label="Main navigation">
+        <a href="#" class="nav-link">Home</a>
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#community" class="nav-link">Community</a>
+        <a href="login.html" class="nav-link btn-outline">Login</a>
+      </nav>
+
+      <button id="hamburger" class="hamburger" aria-label="Open menu" aria-expanded="false">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <!-- Mobile nav (slides in) -->
+    <div id="mobileMenu" class="mobile-menu" aria-hidden="true">
+      <a href="#" class="mobile-link">Home</a>
+      <a href="#features" class="mobile-link">Features</a>
+      <a href="#community" class="mobile-link">Community</a>
+      <a href="login.html" class="mobile-link btn-ghost">Login</a>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <main>
+    <section class="hero" role="region" aria-label="Intro">
+      <div class="hero-overlay"></div>
+
+      <div class="hero-inner container">
+        <div class="hero-copy">
+          <h1 class="hero-title">Your <span class="accent">AI Fashion Assistant</span></h1>
+          <p class="hero-sub">Plan outfits, avoid repeats, try virtual looks — all personalized by AI and your wardrobe.</p>
+
+          <div class="hero-ctas">
+            <a href="signup.html" class="btn btn-primary">Plan My Outfit</a>
+            <a href="login.html" class="btn btn-ghost">Quick Login</a>
+          </div>
+
+         
+        </div>
+
+        <div class="hero-visual">
+          <!-- optional: a framed phone/card showing app screenshot -->
+          <div class="device-frame" aria-hidden="true">
+            <img src="assets/logo.png" alt="WardrobeIQ preview" class="device-img">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FEATURES -->
+    <section id="features" class="section features container">
+      <h2 class="section-title fade-up">Why WardrobeIQ</h2>
+
+      <div class="features-grid">
+        <article class="feature-card fade-up delay-1">
+          <img src="assets/icon-ai.png" alt="" class="feature-icon">
+          <h3>AI Outfit Suggestions</h3>
+          <p>Personalized looks for every occasion — powered by your wardrobe and weather.</p>
+        </article>
+
+        <article class="feature-card fade-up delay-2">
+          <img src="assets/icon-calendar.webp" alt="" class="feature-icon">
+          <h3>Outfit Planner & Repeat Tracker</h3>
+          <p>Plan a week of outfits and get notified if you're repeating pieces too soon.</p>
+        </article>
+
+        <article class="feature-card fade-up delay-3">
+          <img src="assets/icon-voice.png" alt="" class="feature-icon">
+          <h3>Voice & Multilingual Support</h3>
+          <p>Ask WardrobeIQ in your language: "What to wear to a wedding in Goa?" — and get instant ideas.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- COMMUNITY -->
+    <section id="community" class="section community container">
+      <div class="community-head fade-up">
+        <h2 class="section-title">Share Your Style</h2>
+        <p class="section-sub">Post looks, get feedback, and discover trending outfits from the WardrobeIQ community.</p>
+      </div>
+
+      <div class="community-grid">
+        <div class="post-card fade-up delay-1">
+          <div class="post-img" style="background-image:url('assets/sample1.png')"></div>
+          <div class="post-body">
+            <h4>Monsoon Smart</h4>
+            <p class="muted">Rain-friendly & comfy</p>
+          </div>
+        </div>
+
+        <div class="post-card fade-up delay-2">
+          <div class="post-img" style="background-image:url('assets/sample2.png')"></div>
+          <div class="post-body">
+            <h4>Campus Chic</h4>
+            <p class="muted">Simple, clean, effortless</p>
+          </div>
+        </div>
+
+        <div class="post-card fade-up delay-3">
+          <div class="post-img" style="background-image:url('assets/sample3.png')"></div>
+          <div class="post-body">
+            <h4>Wedding Ready</h4>
+            <p class="muted">Statement look for special days</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>© 2025 WardrobeIQ</div>
+      <div class="footer-links">
+        <a href="#">Privacy</a>
+        <a href="#">Terms</a>
+        <a href="#">Contact</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Script -->
+  <script src="script1.js"></script>
+</body>
+</html>

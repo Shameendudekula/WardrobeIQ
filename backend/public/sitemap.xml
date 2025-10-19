@@ -1,19 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="https://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://wardrobe-iq.vercel.app/</loc>
+    <changefreq>weekly</changefreq>
     <priority>1.00</priority>
   </url>
+
+  <url>
+    <loc>https://wardrobe-iq.vercel.app/#features</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+  </url>
+
+  <url>
+    <loc>https://wardrobe-iq.vercel.app/#community</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.80</priority>
+  </url>
+
   <url>
     <loc>https://wardrobe-iq.vercel.app/about</loc>
-    <priority>0.80</priority>
+    <changefreq>yearly</changefreq>
+    <priority>0.70</priority>
   </url>
-  <url>
-    <loc>https://wardrobe-iq.vercel.app/features</loc>
-    <priority>0.80</priority>
-  </url>
+
   <url>
     <loc>https://wardrobe-iq.vercel.app/contact</loc>
+    <changefreq>yearly</changefreq>
     <priority>0.64</priority>
   </url>
 </urlset>

@@ -1,5 +1,4 @@
 User-agent: *
-Disallow: /login.html
-Disallow: /signup.html
+Allow: /
 
 Sitemap: https://wardrobe-iq.vercel.app/sitemap.xml

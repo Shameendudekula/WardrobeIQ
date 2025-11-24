@@ -40,8 +40,7 @@ Robust login/register with JWT for safe, private user accounts.
 
 ⚛️ Frontend: React.js, HTML, CSS, Bootstrap  
 ⚡ Backend: Node.js, Express.js  
-🗄️ Database: MySQL (via XAMPP)  
-🚀 Deployment: *[Add Hosting Info]*
+🗄️ Database: MongoDB
 
 ---
 

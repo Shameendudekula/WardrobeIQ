@@ -38,7 +38,7 @@ Robust login/register with JWT for safe, private user accounts.
 
 ## 🛠️ Tech Stack
 
-⚛️ Frontend: React.js, HTML, CSS, Bootstrap  
+⚛️ Frontend: HTML, CSS, JavaScript  
 ⚡ Backend: Node.js, Express.js  
 🗄️ Database: MongoDB
 

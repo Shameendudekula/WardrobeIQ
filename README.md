@@ -204,9 +204,11 @@ All responses are JSON. Errors use `{ "code": "...", "message": "..." }`. Endpoi
 | GET / PATCH / DELETE | `/api/stylist/outfits/:id` | PATCH `{ saved?, feedback?: { rating: like\|dislike\|null, tags[], comment } }` |
 | GET / PUT / DELETE | `/api/stylist/profile` | Style profile |
 
-Error codes include `VALIDATION_ERROR` (400), `NOT_FOUND` (404), `RATE_LIMITED` (429), `AI_NOT_CONFIGURED` (503), `AI_RATE_LIMITED` (503, with `Retry-After`), `AI_TIMEOUT` (504), `AI_UNAVAILABLE` / `AI_BAD_OUTPUT` (502) and `AI_REFUSED` (422).
+Error codes include `VALIDATION_ERROR` (400), `NOT_FOUND` (404), `RATE_LIMITED` (429), `DB_UNAVAILABLE` (503), `AI_NOT_CONFIGURED` (503), `AI_RATE_LIMITED` (503, with `Retry-After`), `AI_TIMEOUT` (504), `AI_UNAVAILABLE` / `AI_BAD_OUTPUT` (502) and `AI_REFUSED` (422).
 
 **Other**: `GET /api/weather?lat=&lon=|city=` · `GET /api/images/:id` · `GET /api/health`
+
+`GET /api/health` returns `{ ok, db }`; when the database isn't connected it adds a `dbError` reason code (`MONGO_URI_MISSING`, `AUTH_FAILED`, `DNS_LOOKUP_FAILED`, `INVALID_URI`, `NETWORK_OR_IP_BLOCKED`, `CONNECT_FAILED`). It never includes the connection string.
 
 ## 13. Deployment
 

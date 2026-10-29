@@ -1,6 +1,5 @@
 // Builds the Express app without connecting to MongoDB or listening, so tests can import it
 import express from "express";
-import mongoose from "mongoose";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -14,6 +13,7 @@ import imageRoutes from "../routes/images.js";
 import stylistRoutes from "../routes/stylist.js";
 import { HttpError } from "./httpError.js";
 import { AIError } from "../services/ai/errors.js";
+import { ensureDb, dbStatus } from "./db.js";
 
 const publicDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public");
 
@@ -31,16 +31,22 @@ app.use(cookieParser());
 // Static frontend (includes legacy /uploads images)
 app.use(express.static(publicDir));
 
+app.get("/api/health", (req, res) => {
+  res.json({ ok: true, ...dbStatus() });
+});
+
+// API routes need the database: fail fast with a clear 503 instead of a slow generic 500
+app.use("/api", async (req, res, next) => {
+  if (await ensureDb()) return next();
+  res.status(503).json({ code: "DB_UNAVAILABLE", message: "The database is unavailable right now. Please try again in a moment." });
+});
+
 // API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/wardrobe", wardrobeRoutes);
 app.use("/api/stylist", stylistRoutes);
 app.use("/api/images", imageRoutes);
 app.use("/api", weatherRouter); // GET /api/weather
-
-app.get("/api/health", (req, res) => {
-  res.json({ ok: true, db: mongoose.connection.readyState === 1 ? "connected" : "disconnected" });
-});
 
 // Unknown API routes return JSON instead of the landing page
 app.use("/api", (req, res) => res.status(404).json({ code: "NOT_FOUND", message: "Not found" }));

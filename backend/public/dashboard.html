@@ -3,83 +3,207 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>WardrobeIQ — Dashboard</title>
-  <link rel="stylesheet" href="style.css" /> <!-- your main theme CSS -->
-  <link rel="stylesheet" href="dashboard.css" /> <!-- dashboard-only CSS below -->
+  <title>Dashboard | WardrobeIQ</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#081028">
+  <link rel="icon" type="image/png" href="assets/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="dashboard.css" />
+  <script>if (!localStorage.getItem('token')) location.replace('/login');</script>
 </head>
-<body>
+<body class="dash">
+  <div class="bg-fx" aria-hidden="true"><span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span></div>
+
   <header class="nav">
     <div class="nav-inner container">
-      <a class="brand" href="index.html">
-        <img src="/assets/logo.png" alt="WardrobeIQ" class="brand-logo" />
-        <span class="brand-name" data-i18n="brandName">WardrobeIQ</span>
+      <a class="brand" href="/" aria-label="WardrobeIQ home">
+        <span class="brand-mark"><svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbd58a"/><stop offset="1" stop-color="#ef8a7c"/></linearGradient></defs><path d="M13 6.5a3 3 0 1 1 3 3v2.2L4.6 20.2a1.8 1.8 0 0 0 1 3.3h20.8a1.8 1.8 0 0 0 1-3.3L16 11.7" fill="none" stroke="url(#bm)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="brand-text">Wardrobe<b>IQ</b></span>
       </a>
-
+      <nav class="app-tabs" aria-label="App">
+        <a href="/dashboard" class="nav-link active" aria-current="page">Wardrobe</a>
+        <a href="/stylist" class="nav-link">AI Stylist</a>
+      </nav>
       <div class="nav-actions">
-        <select id="languageSwitcher" class="select-lang" aria-label="Choose language"></select>
-        <button id="logoutBtn" data-i18n="logoutBtn">Logout</button>
+        <label class="sr-only" for="languageSwitcher">Language</label>
+        <select id="languageSwitcher" class="select select-lang"></select>
+        <div class="avatar" id="avatar" title="">?</div>
+        <button id="logoutBtn" class="btn btn-ghost btn-sm" type="button"><span data-i18n="logoutBtn">Logout</span></button>
       </div>
     </div>
   </header>
 
-  <main class="container" style="padding-top:110px;">
-    <section class="dashboard-section" id="weatherCard">
-      <p id="weatherInfo" data-i18n="weatherLoading">Loading weather...</p>
-      <div id="weatherDetails" style="margin-top:8px;color:var(--muted)"></div>
+  <main class="container dash-main">
+    <!-- Greeting -->
+    <section class="dash-head">
+      <div data-reveal>
+        <p class="dash-date" id="todayDate"></p>
+        <h1><span id="greeting">Hello</span>, <span class="grad-text" id="userName">there</span> ✨</h1>
+      </div>
+      <button class="btn btn-primary" id="openAddBtn" type="button" data-reveal style="--i:1">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        <span data-i18n="addTitle">Add New Item</span>
+      </button>
     </section>
 
-    <section class="dashboard-section" id="wardrobeSection">
-      <h1 data-i18n="wardrobeTitle">Your Wardrobe</h1>
-      <div id="wardrobeItems" class="items-grid" data-i18n="loadingWardrobe">Loading wardrobe...</div>
+    <!-- Stats -->
+    <section class="stats" data-stagger aria-label="Wardrobe stats">
+      <div class="stat glass" data-reveal><span class="stat-ico si-warm">👕</span><div><strong class="stat-num" id="statItems">0</strong><span>Items</span></div></div>
+      <div class="stat glass" data-reveal><span class="stat-ico si-cool">🗂️</span><div><strong class="stat-num" id="statCategories">0</strong><span>Categories</span></div></div>
+      <div class="stat glass" data-reveal><span class="stat-ico si-violet">🔥</span><div><strong class="stat-num" id="statWeek">0</strong><span>Worn this week</span></div></div>
+      <div class="stat glass" data-reveal><span class="stat-ico si-cyan">💤</span><div><strong class="stat-num" id="statIdle">0</strong><span>Not worn in 30 days</span></div></div>
+    </section>
 
-      <h3 id="addItemTitle" data-i18n="addTitle">Add New Item</h3>
-      <form id="addItemForm" class="add-item-form">
-        <input id="itemName" name="itemName" placeholder="Item name" data-i18n-placeholder="itemNamePlaceholder" required />
-        <input id="category" name="category" placeholder="Category (e.g., jacket, dress)" data-i18n-placeholder="categoryPlaceholder" />
-        <input id="imageFile" name="image" type="file" accept="image/*" />
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn btn-primary" type="submit" data-i18n="addItemBtn">Add Item</button>
-          <button id="clearAdd" class="btn btn-ghost" type="button" data-i18n="clearBtn">Clear</button>
+    <!-- Weather + suggestions -->
+    <section class="today-grid">
+      <article class="weather-card" id="weatherCard" data-reveal="left">
+        <div class="weather-top">
+          <span class="weather-label">Today's weather</span>
+          <button class="btn btn-ghost btn-icon" id="refreshWeather" type="button" aria-label="Refresh weather"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></button>
         </div>
-      </form>
+        <div class="weather-body">
+          <div class="weather-icon" id="weatherIcon">⛅</div>
+          <div>
+            <div class="weather-temp" id="weatherTemp">--°</div>
+            <p id="weatherInfo" data-i18n="weatherLoading">Loading weather...</p>
+          </div>
+        </div>
+        <div class="weather-tip" id="weatherTip" hidden></div>
+        <div class="weather-meta" id="weatherDetails">
+          <span class="chip">💨 <b id="wWind">–</b></span>
+          <span class="chip">💧 <b id="wHumidity">–</b></span>
+        </div>
+      </article>
+
+      <article class="suggest-card glass" id="suggestionsSection" data-reveal="right">
+        <div class="card-head">
+          <h2 data-i18n="suggestionsTitle">AI Outfit Suggestions</h2>
+          <a class="btn btn-ghost btn-sm" href="/stylist">Open stylist →</a>
+        </div>
+        <form id="askStylist" class="ask-row" novalidate>
+          <label class="sr-only" for="askInput">Ask the AI stylist</label>
+          <input id="askInput" maxlength="500" autocomplete="off" placeholder="What should I wear to…">
+          <button class="btn btn-primary" type="submit">✨ Ask</button>
+        </form>
+        <div class="chip-group" aria-label="Quick requests">
+          <button type="button" class="fchip" data-ask="What should I wear today?">☀️ Today</button>
+          <button type="button" class="fchip" data-ask="Help me look professional for work tomorrow">💼 Work</button>
+          <button type="button" class="fchip" data-ask="Recommend something for a dinner date">🍷 Date night</button>
+          <button type="button" class="fchip" data-ask="Create an outfit using items I rarely wear">💤 Rarely worn</button>
+          <button type="button" class="fchip" data-ask="Suggest three outfits for a weekend trip">🧳 Weekend trip</button>
+        </div>
+        <p class="recent-label">Recent AI outfits</p>
+        <div id="recentOutfits" class="suggest-row" aria-live="polite"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+      </article>
     </section>
 
-    <section class="dashboard-section" id="suggestionsSection">
-      <h2 id="suggestionTitle" data-i18n="suggestionsTitle">AI Outfit Suggestions</h2>
-      <div id="context-controls" style="margin: 10px 0;">
-  <select id="locationSelect">
-  <option value="">-- Select Location --</option>
-  <option value="office">Office</option>
-  <option value="beach">Beach</option>
-  <option value="home">Home</option>
-</select>
-
-<select id="occasionSelect">
-  <option value="">-- Select Occasion --</option>
-  <option value="formal">Formal</option>
-  <option value="party">Party</option>
-  <option value="casual">Casual</option>
-  <option value="wedding">Wedding</option>
-</select>
-
-<select id="purposeSelect">
-  <option value="">-- Select Purpose --</option>
-  <option value="workout">Workout</option>
-  <option value="travel">Travel</option>
-  <option value="date">Date</option>
-</select>
-<button id="applyFiltersBtn">Apply Filters</button>
-</div>
-
-      <div id="suggestions" class="items-grid" data-i18n="loadingSuggestions">Loading suggestions...</div>
+    <!-- Wardrobe -->
+    <section class="panel" id="wardrobeSection">
+      <div class="panel-head" data-reveal>
+        <h2 data-i18n="wardrobeTitle">Your Wardrobe</h2>
+        <div class="search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input id="searchInput" type="search" placeholder="Search your clothes…" aria-label="Search wardrobe">
+        </div>
+      </div>
+      <div class="cat-filters" id="categoryFilters" role="tablist" aria-label="Filter by category"></div>
+      <div id="wardrobeItems" class="items-grid"></div>
     </section>
-    <h2 data-i18n="historyTitle">Outfit History</h2>
-<div id="historyItems"><em>No history yet</em></div>
 
-    <button id="voiceCommandBtn" class="btn btn-primary" style="position:fixed;right:20px;bottom:20px" data-i18n="voiceBtn">🎤 Voice</button>
-    <div id="voiceStatus" class="voice-text"></div>
+    <!-- History -->
+    <section class="panel" id="historySection">
+      <div class="panel-head" data-reveal><h2 data-i18n="historyTitle">Outfit History</h2></div>
+      <div id="historyItems" class="timeline"></div>
+    </section>
   </main>
 
+  <!-- Voice -->
+  <button id="voiceCommandBtn" class="voice-fab" type="button" aria-label="Voice command">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5"/></svg>
+    <span class="voice-tip" data-i18n="voiceBtn">🎤 Voice</span>
+  </button>
+  <div id="voiceStatus" class="voice-overlay" aria-live="polite" hidden>
+    <div class="voice-bars"><span></span><span></span><span></span><span></span><span></span></div>
+    <p class="voice-text">Listening…</p>
+    <small class="muted">Try "suggest an outfit for work", "show jackets" or "add blue shirt"</small>
+  </div>
+
+  <!-- Add item modal -->
+  <div class="modal" id="addModal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card glass" role="dialog" aria-modal="true" aria-labelledby="addItemTitle">
+      <div class="card-head">
+        <h2 id="addItemTitle" data-i18n="addTitle">Add New Item</h2>
+        <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="Close">✕</button>
+      </div>
+      <form id="addItemForm" class="add-item-form" novalidate>
+        <label class="dropzone" id="dropzone">
+          <input id="imageFile" name="image" type="file" accept="image/*" capture="environment" hidden />
+          <img id="previewImg" alt="" hidden>
+          <span class="dz-empty">
+            <span class="dz-ico">📸</span>
+            <strong>Drop a photo or click to upload</strong>
+            <small class="muted">JPG, PNG or WEBP · up to 4MB</small>
+          </span>
+        </label>
+        <div class="field">
+          <input id="itemName" name="itemName" placeholder=" " required autocomplete="off" />
+          <label for="itemName" data-i18n="itemNamePlaceholder">Item name</label>
+        </div>
+        <div class="field">
+          <input id="category" name="category" placeholder=" " list="categoryList" required autocomplete="off" />
+          <label for="category" data-i18n="categoryPlaceholder">Category (e.g., jacket, dress)</label>
+          <datalist id="categoryList">
+            <option value="T-shirt"><option value="Shirt"><option value="Formal shirt"><option value="Jeans"><option value="Trousers">
+            <option value="Dress"><option value="Kurta set"><option value="Saree"><option value="Half saree"><option value="Sherwani">
+            <option value="Blazer"><option value="Raincoat"><option value="Coat"><option value="Sneakers"><option value="Loafers">
+            <option value="Heels"><option value="Boots"><option value="Sportswear"><option value="Loungewear"><option value="Accessories">
+          </datalist>
+        </div>
+        <details class="more-details" id="moreDetails">
+          <summary>More details <small class="muted">— optional, helps the AI stylist</small></summary>
+          <div class="field"><input id="colors" name="colors" placeholder=" " maxlength="150" autocomplete="off"><label for="colors">Colours (e.g. navy, white)</label></div>
+          <div class="md-row">
+            <label class="md-opt"><span>Formality</span>
+              <select id="formality" name="formality" class="select"><option value="">Not set</option><option value="casual">Casual</option><option value="smart-casual">Smart casual</option><option value="business">Business</option><option value="formal">Formal</option></select>
+            </label>
+            <div class="field"><input id="pattern" name="pattern" placeholder=" " maxlength="40"><label for="pattern">Pattern</label></div>
+            <div class="field"><input id="material" name="material" placeholder=" " maxlength="40"><label for="material">Material</label></div>
+          </div>
+          <fieldset class="seasons"><legend>Seasons</legend>
+            <label><input type="checkbox" name="seasons" value="spring"> Spring</label>
+            <label><input type="checkbox" name="seasons" value="summer"> Summer</label>
+            <label><input type="checkbox" name="seasons" value="autumn"> Autumn</label>
+            <label><input type="checkbox" name="seasons" value="winter"> Winter</label>
+          </fieldset>
+          <div class="field"><input id="notes" name="notes" placeholder=" " maxlength="300"><label for="notes">Notes (fit, how you like to wear it)</label></div>
+        </details>
+        <div class="modal-actions">
+          <button id="clearAdd" class="btn btn-ghost" type="button" data-i18n="clearBtn">Clear</button>
+          <button class="btn btn-primary" type="submit"><span data-i18n="addItemBtn">Add Item</span></button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Confirm modal -->
+  <div class="modal" id="confirmModal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card modal-sm glass" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <div class="confirm-ico">🗑️</div>
+      <h2 id="confirmTitle">Delete this item?</h2>
+      <p class="muted" id="confirmText">This removes it and its wear history.</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" type="button" data-close>Cancel</button>
+        <button class="btn btn-danger" type="button" id="confirmOk">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="ui.js"></script>
   <script src="dashboard.js" defer></script>
 </body>
 </html>

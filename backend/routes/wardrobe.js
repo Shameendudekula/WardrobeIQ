@@ -1,66 +1,119 @@
 // backend/routes/wardrobe.js
 import express from "express";
 import multer from "multer";
-import path from "path";
-import fs from "fs";
 import mongoose from "mongoose";
-import fetch from "node-fetch";
-import WardrobeItem from "../models/wardrobeItem.js";
+import { z } from "zod";
+import WardrobeItem, { FORMALITY_LEVELS, SEASONS } from "../models/wardrobeItem.js";
+import Image from "../models/image.js";
 import { authenticateToken } from "../middlewares/authMiddleware.js";
 import OutfitHistory from "../models/outfitHistory.js";
+import { sniffImageType } from "../lib/imageType.js";
 const router = express.Router();
 
-// ensure uploads dir
-const uploadDir = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-
-// storage + validation
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
-});
+// Keep uploads in memory and store them in MongoDB (serverless hosts have no persistent disk)
 const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 4 * 1024 * 1024, files: 1 }, // 4MB (Vercel caps request bodies at 4.5MB)
   fileFilter: (req, file, cb) => {
-    if (!file.mimetype.startsWith("image/")) return cb(new Error("Only image files allowed"), false);
+    if (!file.mimetype.startsWith("image/")) return cb(Object.assign(new Error("Only image files allowed"), { status: 400 }), false);
     cb(null, true);
   }
 });
 
-// POST /api/wardrobe  (upload single file field name: "image")
-router.post("/", authenticateToken, upload.single("image"), async (req, res) => {
-  try {
-    const { itemName, category } = req.body;
-    if (!req.file) return res.status(400).json({ message: "Image file is required" });
-    // Normalize the category here:
-    // - Trim spaces
-    // - Lowercase
-    // - Optional: map synonyms to standard category (can skip if you want simple)
-    const normalizedCategory = getCanonicalCategory(category || "");
+// Optional styling metadata. Multipart fields arrive as strings, so lists accept "a, b" or a JSON array.
+const list = (max, itemMax = 30) => z.preprocess((v) => {
+  if (v === undefined || v === null) return undefined;
+  if (v === "") return []; // empty string clears the list when editing
+  if (Array.isArray(v)) return v;
+  const s = String(v).trim();
+  if (s.startsWith("[")) { try { return JSON.parse(s); } catch { return s; } }
+  return s.split(",");
+}, z.array(z.string().trim().toLowerCase().max(itemMax)).max(max).transform((a) => [...new Set(a.filter(Boolean))]).optional());
+// Empty string or null clears the field when editing
+const optionalText = (max) => z.preprocess((v) => (v === "" ? null : v), z.string().trim().max(max).nullable().optional());
 
-const newItem = new WardrobeItem({
-  userId: req.user.userId,
-  itemName,
-  category: normalizedCategory,
-  imageUrl: `/uploads/${req.file.filename}`,
-  lastWornDate: null
+const MetadataSchema = z.object({
+  colors: list(5),
+  pattern: optionalText(40),
+  material: optionalText(40),
+  formality: z.preprocess((v) => (v === "" ? null : v), z.enum(FORMALITY_LEVELS).nullable().optional()),
+  seasons: list(4).refine((a) => !a || a.every((x) => SEASONS.includes(x)), "seasons must be spring, summer, autumn or winter"),
+  styleTags: list(8),
+  notes: optionalText(300),
 });
+const CreateItemSchema = MetadataSchema.extend({
+  itemName: z.string().trim().min(1, "Item name is required").max(80),
+  category: z.string().trim().min(1, "Category is required").max(40),
+});
+const UpdateItemSchema = MetadataSchema.extend({
+  itemName: z.string().trim().min(1).max(80).optional(),
+  category: z.string().trim().min(1).max(40).optional(),
+}).strict();
 
+const validId = (id) => mongoose.isValidObjectId(id);
+// Categories keep the user's wording; the AI stylist reads them directly
+const normalizeCategory = (c) => c.trim().toLowerCase().replace(/\s+/g, " ");
 
-    const saved = await newItem.save();
+// POST /api/wardrobe  (multipart: image + itemName, category, optional metadata)
+router.post("/", authenticateToken, upload.single("image"), async (req, res, next) => {
+  try {
+    const parsed = CreateItemSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    if (!req.file) return res.status(400).json({ code: "VALIDATION_ERROR", message: "Image file is required" });
+
+    // Trust the file's bytes, not the client-supplied MIME type or extension
+    const contentType = sniffImageType(req.file.buffer);
+    if (!contentType) {
+      return res.status(400).json({ code: "UNSUPPORTED_IMAGE", message: "Upload a JPEG, PNG, WEBP or GIF image" });
+    }
+
+    const { itemName, category, ...metadata } = parsed.data;
+    const normalizedCategory = normalizeCategory(category);
+
+    const image = await Image.create({ userId: req.user.userId, data: req.file.buffer, contentType });
+
+    const saved = await WardrobeItem.create({
+      userId: req.user.userId,
+      itemName,
+      category: normalizedCategory,
+      imageUrl: `/api/images/${image._id}`,
+      lastWornDate: null,
+      ...metadata
+    });
     res.status(201).json(saved);
   } catch (err) {
-    console.error("wardrobe POST error:", err);
-    res.status(500).json({ message: err.message });
+    next(err);
+  }
+});
+
+// PATCH /api/wardrobe/:id  (edit name, category or metadata)
+router.patch("/:id", authenticateToken, async (req, res, next) => {
+  try {
+    if (!validId(req.params.id)) return res.status(404).json({ code: "NOT_FOUND", message: "Item not found" });
+    const parsed = UpdateItemSchema.safeParse(req.body);
+    if (!parsed.success) return next(parsed.error);
+    const update = { ...parsed.data };
+    if (update.category) update.category = normalizeCategory(update.category);
+
+    const item = await WardrobeItem.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user.userId },
+      { $set: update },
+      { new: true, runValidators: true }
+    );
+    if (!item) return res.status(404).json({ code: "NOT_FOUND", message: "Item not found" });
+    res.json(item);
+  } catch (err) {
+    next(err);
   }
 });
 
 
-// GET /api/wardrobe  (get all items for authenticated user)
+// GET /api/wardrobe  (get all items for authenticated user, optional ?category= filter)
 router.get("/", authenticateToken, async (req, res) => {
   try {
-    const items = await WardrobeItem.find({ userId: req.user.userId }).sort({ createdAt: -1 });
+    const filter = { userId: req.user.userId };
+    if (req.query.category) filter.category = normalizeCategory(String(req.query.category));
+    const items = await WardrobeItem.find(filter).sort({ createdAt: -1 });
     res.json(items);
   } catch (err) {
     console.error("wardrobe GET error:", err);
@@ -127,8 +180,11 @@ function getCanonicalCategory(inputCategory) {
 }
 
 
-// POST /api/wardrobe/:id/wear  (mark worn)
+// POST /api/wardrobe/suggestions  — DEPRECATED rule-based category filter kept for API compatibility.
+// It is not AI. The app uses POST /api/stylist/recommend instead.
 router.post("/suggestions", authenticateToken, async (req, res) => {
+  res.set("Deprecation", "true");
+  res.set("Link", '</api/stylist/recommend>; rel="successor-version"');
   try {
     const {
       temp,
@@ -159,13 +215,22 @@ router.post("/suggestions", authenticateToken, async (req, res) => {
 
     const categories = new Set();
 
-    // Weather-based categories
-    if (temp < 15) ["jacket", "sweater", "hoodie", "jeans", "kurta set"].forEach(c => categories.add(getCanonicalCategory(c)));
+    // Weather-based categories (skipped when weather is unavailable)
+    const hasTemp = typeof temp === "number" && Number.isFinite(temp);
+    const conditionNorm = String(condition || "").toLowerCase();
+    if (!hasTemp) {
+      // no weather data
+    } else if (temp < 15) ["jacket", "sweater", "hoodie", "jeans", "kurta set"].forEach(c => categories.add(getCanonicalCategory(c)));
     else if (temp >= 15 && temp <= 25) ["shirt", "long-sleeves", "light-jacket", "jeans", "kurta set"].forEach(c => categories.add(getCanonicalCategory(c)));
     else ["t-shirt", "short", "dress", "crop top", "short top", "jeans"].forEach(c => categories.add(getCanonicalCategory(c)));
 
-    if (condition.includes("rain")) ["raincoat", "jacket"].forEach(c => categories.add(getCanonicalCategory(c)));
-    if (condition.includes("snow")) ["coat", "boots"].forEach(c => categories.add(getCanonicalCategory(c)));
+    // No weather and no filters: fall back to everyday basics
+    if (!hasTemp && !locationNorm && !occasionNorm && !purposeNorm) {
+      ["t-shirt", "shirt", "jeans", "kurta set", "dress", "sneakers"].forEach(c => categories.add(getCanonicalCategory(c)));
+    }
+
+    if (conditionNorm.includes("rain")) ["raincoat", "jacket"].forEach(c => categories.add(getCanonicalCategory(c)));
+    if (conditionNorm.includes("snow")) ["coat", "boots"].forEach(c => categories.add(getCanonicalCategory(c)));
 
     // Location-based
     if (locationNorm === "office") {
@@ -222,6 +287,7 @@ router.post("/suggestions", authenticateToken, async (req, res) => {
 router.delete("/:id", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
+    if (!validId(id)) return res.status(404).json({ code: "NOT_FOUND", message: "Item not found" });
 
     // Ensure item belongs to the logged-in user
     const item = await WardrobeItem.findOneAndDelete({
@@ -230,16 +296,13 @@ router.delete("/:id", authenticateToken, async (req, res) => {
     });
 
     if (!item) {
-      return res.status(404).json({ message: "Item not found or not authorized" });
+      return res.status(404).json({ code: "NOT_FOUND", message: "Item not found" });
     }
 
-    // Optionally delete image file from uploads
-    if (item.imageUrl) {
-      const filePath = path.join(process.cwd(), item.imageUrl.replace(/^\//, ""));
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    }
+    // Remove the stored image and this item's wear history
+    const imageMatch = item.imageUrl && item.imageUrl.match(/^\/api\/images\/([a-f0-9]{24})$/);
+    if (imageMatch) await Image.deleteOne({ _id: imageMatch[1], userId: req.user.userId });
+    await OutfitHistory.deleteMany({ itemId: item._id, userId: req.user.userId });
 
     res.json({ success: true, message: "Item deleted successfully" });
   } catch (err) {
@@ -247,8 +310,8 @@ router.delete("/:id", authenticateToken, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-// GET /api/outfithistories
-router.get("/api/wardrobe/outfithistories", authenticateToken, async (req, res) => {
+// GET /api/wardrobe/history
+router.get("/history", authenticateToken, async (req, res) => {
   try {
     const histories = await OutfitHistory.find({ userId: req.user.userId })
       .populate("itemId") // pulls wardrobe item details
@@ -265,6 +328,7 @@ router.get("/api/wardrobe/outfithistories", authenticateToken, async (req, res) 
 router.post("/:id/wear", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
+    if (!validId(id)) return res.status(404).json({ code: "NOT_FOUND", message: "Item not found" });
 
     // Ensure the item belongs to the logged-in user
     const item = await WardrobeItem.findOne({
@@ -272,7 +336,7 @@ router.post("/:id/wear", authenticateToken, async (req, res) => {
       userId: req.user.userId
     });
 
-    if (!item) return res.status(404).json({ error: "Item not found" });
+    if (!item) return res.status(404).json({ code: "NOT_FOUND", message: "Item not found" });
 
     // Update last worn date
     item.lastWornDate = new Date();
@@ -293,7 +357,7 @@ router.post("/:id/wear", authenticateToken, async (req, res) => {
     });
   } catch (err) {
     console.error("Error marking as worn:", err);
-    res.status(500).json({ error: "Server error" });
+    res.status(500).json({ code: "INTERNAL_ERROR", message: "Server error" });
   }
 });
 

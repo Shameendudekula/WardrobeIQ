@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AI Stylist | WardrobeIQ</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#081028">
+  <link rel="icon" type="image/png" href="assets/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="dashboard.css" />
+  <link rel="stylesheet" href="stylist.css" />
+  <script>if (!localStorage.getItem('token')) location.replace('/login');</script>
+</head>
+<body class="dash">
+  <div class="bg-fx" aria-hidden="true"><span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span></div>
+
+  <header class="nav">
+    <div class="nav-inner container">
+      <a class="brand" href="/" aria-label="WardrobeIQ home">
+        <span class="brand-mark"><svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbd58a"/><stop offset="1" stop-color="#ef8a7c"/></linearGradient></defs><path d="M13 6.5a3 3 0 1 1 3 3v2.2L4.6 20.2a1.8 1.8 0 0 0 1 3.3h20.8a1.8 1.8 0 0 0 1-3.3L16 11.7" fill="none" stroke="url(#bm)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="brand-text">Wardrobe<b>IQ</b></span>
+      </a>
+      <nav class="app-tabs" aria-label="App">
+        <a href="/dashboard" class="nav-link">Wardrobe</a>
+        <a href="/stylist" class="nav-link active" aria-current="page">AI Stylist</a>
+      </nav>
+      <div class="nav-actions">
+        <button id="profileBtn" class="btn btn-ghost btn-sm" type="button">🎨 <span class="hide-sm">Style profile</span></button>
+        <div class="avatar" id="avatar">?</div>
+        <button id="logoutBtn" class="btn btn-ghost btn-sm" type="button">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container dash-main">
+    <section class="st-hero" data-reveal>
+      <p class="dash-date">Your personal stylist</p>
+      <h1>What are we <span class="grad-text">dressing for?</span></h1>
+      <p class="muted">Describe the moment. The stylist builds outfits only from clothes in your wardrobe and explains every choice.</p>
+    </section>
+
+    <div id="aiStatus" class="st-banner" hidden></div>
+
+    <form id="composer" class="st-composer glass" data-reveal style="--i:1" novalidate>
+      <label for="prompt" class="sr-only">Describe what you need</label>
+      <textarea id="prompt" name="prompt" rows="3" maxlength="500" required placeholder="e.g. Suggest an outfit for a university presentation tomorrow"></textarea>
+      <div class="st-presets" aria-label="Example requests">
+        <button type="button" class="fchip" data-preset="Suggest an outfit for a university presentation tomorrow">🎓 Presentation</button>
+        <button type="button" class="fchip" data-preset="Recommend something for a dinner date">🍷 Dinner date</button>
+        <button type="button" class="fchip" data-preset="Create an outfit using items I rarely wear">💤 Rarely worn</button>
+        <button type="button" class="fchip" data-preset="Help me look professional without buying new clothes">💼 Professional</button>
+        <button type="button" class="fchip" data-preset="Give me a comfortable outfit for walking around the city">🚶 City walk</button>
+        <button type="button" class="fchip" data-preset="Suggest three outfits for a weekend trip">🧳 Weekend trip</button>
+      </div>
+      <div class="st-options">
+        <label class="st-opt"><span>Occasion</span>
+          <select id="occasion" class="select">
+            <option value="">Any</option><option>casual</option><option>work</option><option>formal</option><option>party</option>
+            <option>date</option><option>wedding</option><option>travel</option><option>workout</option>
+          </select>
+        </label>
+        <label class="st-opt"><span>When</span>
+          <select id="when" class="select"><option value="today">Today</option><option value="tomorrow">Tomorrow</option><option value="date">Pick a date…</option></select>
+        </label>
+        <label class="st-opt" id="dateWrap" hidden><span>Date</span><input id="date" type="date" class="select"></label>
+        <label class="st-opt"><span>Weather for</span>
+          <select id="locMode" class="select"><option value="geo">My location</option><option value="city">A city…</option><option value="none">Skip weather</option></select>
+        </label>
+        <label class="st-opt" id="cityWrap" hidden><span>City</span><input id="city" class="select" maxlength="80" placeholder="e.g. Karlskrona"></label>
+        <label class="st-opt"><span>Outfits</span>
+          <select id="count" class="select"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select>
+        </label>
+        <button class="btn btn-primary st-go" type="submit" id="generateBtn">✨ Style me</button>
+      </div>
+      <p class="st-privacy">🔒 Your request, style profile and item details (names, categories, colours, notes — <b>not photos</b>) are sent to the configured AI provider to generate suggestions.</p>
+    </form>
+
+    <div class="st-tabs" role="tablist" aria-label="Outfits">
+      <button role="tab" class="st-tab active" aria-selected="true" data-tab="results" id="tab-results">✨ Suggestions</button>
+      <button role="tab" class="st-tab" aria-selected="false" data-tab="saved" id="tab-saved">⭐ Saved</button>
+      <button role="tab" class="st-tab" aria-selected="false" data-tab="history" id="tab-history">🕘 History</button>
+    </div>
+    <section id="results" class="st-results" aria-live="polite">
+      <div class="empty"><span class="e-ico">✦</span><strong>Your outfits will appear here</strong>Pick an example above or describe your plans.</div>
+    </section>
+  </main>
+
+  <!-- Style profile modal -->
+  <div class="modal" id="profileModal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card glass" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
+      <div class="card-head">
+        <h2 id="profileTitle">Style profile</h2>
+        <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="Close">✕</button>
+      </div>
+      <p class="muted st-small">Optional. The stylist uses these to personalise outfits. Separate list items with commas. You can delete this any time.</p>
+      <form id="profileForm" novalidate>
+        <div class="field"><input id="pf-preferredStyles" placeholder=" " maxlength="300"><label for="pf-preferredStyles">Styles you like (minimal, streetwear…)</label></div>
+        <div class="field"><input id="pf-favoriteColors" placeholder=" " maxlength="300"><label for="pf-favoriteColors">Favourite colours</label></div>
+        <div class="field"><input id="pf-dislikedColors" placeholder=" " maxlength="300"><label for="pf-dislikedColors">Colours to avoid</label></div>
+        <div class="field"><input id="pf-fit" placeholder=" " maxlength="80"><label for="pf-fit">Fit preference (relaxed, tailored…)</label></div>
+        <div class="field"><input id="pf-formality" placeholder=" " maxlength="40"><label for="pf-formality">Usual formality (casual, smart-casual…)</label></div>
+        <div class="field"><input id="pf-comfort" placeholder=" " maxlength="120"><label for="pf-comfort">Comfort needs (no heels, soft fabrics…)</label></div>
+        <div class="field"><input id="pf-typicalOccasions" placeholder=" " maxlength="300"><label for="pf-typicalOccasions">Typical occasions (university, office…)</label></div>
+        <div class="field"><input id="pf-goals" placeholder=" " maxlength="400"><label for="pf-goals">Style goals</label></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="profileDelete">Delete profile</button>
+          <button type="submit" class="btn btn-primary">Save profile</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="ui.js"></script>
+  <script src="stylist-render.js"></script>
+  <script src="stylist.js" defer></script>
+</body>
+</html>

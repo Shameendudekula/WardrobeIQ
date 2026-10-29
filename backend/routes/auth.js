@@ -1,15 +1,33 @@
 import express from "express";
 import User from "../models/user.js";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { rateLimit } from "express-rate-limit";
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_key";
+
+// Slow down credential stuffing / brute force: per-IP cap on login and signup attempts
+router.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: () => Number(process.env.AUTH_RATE_LIMIT_PER_15MIN) || 30,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  skip: (req) => req.path === "/logout",
+  handler: (req, res) => res.status(429).json({ code: "RATE_LIMITED", message: "Too many attempts. Please wait a few minutes and try again." }),
+}));
 
 router.post("/signup", async (req, res) => {
   try {
-    console.log("Signup body:", req.body);
-    const { name, email, password } = req.body;
+    const name = (req.body.name || "").trim();
+    const email = (req.body.email || "").trim().toLowerCase();
+    const password = req.body.password || "";
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "Name, email and password are required" });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    }
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -18,10 +36,9 @@ router.post("/signup", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = new User({ name, email, password: hashedPassword });
-    const savedUser = await newUser.save();
+    await newUser.save();
 
-    console.log("User saved:", savedUser);
-    res.json({ message: "Signup successful!" });
+    res.status(201).json({ message: "Signup successful!" });
   } catch (error) {
     console.error("Signup error:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -30,7 +47,8 @@ router.post("/signup", async (req, res) => {
 
 router.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const email = (req.body.email || "").trim().toLowerCase();
+    const password = req.body.password || "";
 
     const user = await User.findOne({ email });
     if (!user) {
@@ -43,13 +61,19 @@ router.post("/login", async (req, res) => {
     }
 
     const payload = { userId: user._id, name: user.name, email: user.email };
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "1d" });
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "1d" });
 
     res.json({ message: "Login successful!", token });
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
+});
+
+// Tokens are stored client-side; clear the cookie too in case one was set
+router.post("/logout", (req, res) => {
+  res.clearCookie("token");
+  res.json({ message: "Logged out" });
 });
 
 export default router;

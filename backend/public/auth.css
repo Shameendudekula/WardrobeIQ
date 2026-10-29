@@ -1,149 +1,52 @@
-/* --- General Reset & Fonts --- */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* WardrobeIQ — login / signup */
+.auth-shell{display:grid;grid-template-columns:1.05fr 1fr;min-height:100vh}
 
-body {
-  font-family: 'Poppins', sans-serif;
-  background: linear-gradient(135deg, #242e3f, #e2bcaf);
-  color: #333;
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-}
+/* Brand / art panel */
+.auth-art{position:relative;display:flex;flex-direction:column;justify-content:space-between;padding:36px 48px;overflow:hidden;border-right:1px solid var(--border);background:linear-gradient(160deg,rgba(255,255,255,.04),transparent 60%)}
+.auth-art>.brand{animation:fade-down .8s var(--ease) both}
+.art-stage{position:relative;height:min(52vh,460px);margin:24px 0}
+.art-card{position:absolute;margin:0;border-radius:22px;overflow:hidden;border:1px solid var(--border-strong);box-shadow:0 30px 80px -20px rgba(0,0,0,.7)}
+.art-card img{width:100%;height:100%;object-fit:cover}
+.art-card.c1{width:52%;height:100%;left:12%;top:0;--r:-4deg;animation:card-in 1.1s var(--ease) .1s both,float 8s ease-in-out 1.2s infinite}
+.art-card.c2{width:44%;height:62%;right:6%;bottom:-4%;--r:6deg;animation:card-in 1.1s var(--ease) .3s both,float 9s ease-in-out 1.4s infinite}
+.art-chip{position:absolute;left:4%;bottom:12%;display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:999px;background:rgba(16,26,60,.82);backdrop-filter:blur(12px);border:1px solid var(--border-strong);font-size:.88rem;font-weight:500;box-shadow:var(--shadow);animation:chip-pop .8s var(--ease-bounce) .9s both}
+.art-quote{margin:0;max-width:440px;animation:fade-up 1s var(--ease) .5s both}
+.art-quote p{font-family:var(--font-display);font-size:1.6rem;line-height:1.3;margin-bottom:10px}
+.art-quote footer{color:var(--muted);font-size:.9rem}
 
-/* --- Navbar --- */
-nav {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px 30px;
-  background: rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  z-index: 100;
-}
+/* Form panel */
+.auth-panel{display:flex;flex-direction:column;justify-content:center;align-items:center;padding:40px 24px}
+.auth-mobile-brand{display:none}
+.auth-card{width:100%;max-width:400px}
+.auth-card h1{font-size:2.4rem;letter-spacing:-.02em;margin-bottom:8px}
+.auth-card>p.muted{margin-bottom:32px}
+.wave{display:inline-block;transform-origin:70% 70%;animation:wave 2.4s ease-in-out 1s 2}
+.btn-block{width:100%;margin-top:8px;padding:15px 22px}
+.auth-switch{margin-top:24px;text-align:center;color:var(--muted);font-size:.95rem}
+.auth-switch a{color:var(--peach);font-weight:600;text-decoration:none;background:linear-gradient(var(--peach),var(--peach)) 0 100%/0 1px no-repeat;transition:background-size .3s var(--ease)}
+.auth-switch a:hover{background-size:100% 1px}
 
-.logo {
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: #ff6f61;
-}
+/* Field error shake */
+.field.invalid input{border-color:rgba(248,113,113,.7);box-shadow:0 0 0 4px rgba(248,113,113,.12)}
+.field.invalid{animation:shake .4s}
 
-.nav-links {
-  display: flex;
-  gap: 20px;
-}
+/* Password strength meter */
+.pw-meter{margin:-6px 0 18px}
+.pw-meter span{display:block;height:4px;border-radius:4px;background:rgba(255,255,255,.08);position:relative;overflow:hidden;margin-bottom:6px}
+.pw-meter span::after{content:"";position:absolute;inset:0;width:var(--w,0%);background:var(--c,var(--danger));border-radius:4px;transition:width .4s var(--ease),background .3s}
+.pw-meter small{color:var(--faint);font-size:.8rem}
 
-.nav-links a {
-  text-decoration: none;
-  color: #333;
-  font-weight: 500;
-  transition: color 0.3s;
-}
+@keyframes card-in{from{opacity:0;transform:translateY(50px) rotate(0)}to{opacity:1;transform:rotate(var(--r))}}
+@keyframes chip-pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+@keyframes fade-up{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+@keyframes fade-down{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
+@keyframes wave{0%,60%,100%{transform:rotate(0)}10%,30%{transform:rotate(14deg)}20%{transform:rotate(-8deg)}40%{transform:rotate(-4deg)}50%{transform:rotate(10deg)}}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
 
-.nav-links a:hover {
-  color: #ff6f61;
-}
-
-/* Mobile Menu */
-.hamburger {
-  display: none;
-  flex-direction: column;
-  cursor: pointer;
-}
-
-.hamburger span {
-  height: 3px;
-  width: 25px;
-  background: #333;
-  margin: 4px 0;
-  transition: all 0.3s ease;
-}
-
-@media (max-width: 768px) {
-  .nav-links {
-    position: absolute;
-    top: 60px;
-    right: 0;
-    background: white;
-    flex-direction: column;
-    width: 200px;
-    text-align: center;
-    padding: 20px;
-    transform: translateX(100%);
-    transition: transform 0.3s ease;
-  }
-  .nav-links.active {
-    transform: translateX(0%);
-  }
-  .hamburger {
-    display: flex;
-  }
-}
-
-/* --- Form Container --- */
-.form-container {
-  margin: auto;
-  margin-top: 90px;
-  background: white;
-  padding: 30px;
-  border-radius: 15px;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-  width: 90%;
-  height: auto;
-  max-width: 400px;
-  animation: fadeIn 0.6s ease-in-out;
-}
-
-.form-container h2 {
-  color: #ff6f61;
-  text-align: center;
-  margin-bottom: 20px;
-}
-
-form {
-  display: flex;
-  flex-direction: column;
-}
-
-input {
-  padding: 12px;
-  margin: 10px 0;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  transition: all 0.3s ease;
-}
-
-input:focus {
-  border-color: #ff6f61;
-  outline: none;
-  box-shadow: 0 0 5px rgba(255,111,97,0.5);
-}
-
-button {
-  background: #ff6f61;
-  color: white;
-  padding: 12px;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: transform 0.2s, background 0.3s;
-}
-
-button:hover {
-  background: #e85b50;
-  transform: scale(1.05);
-}
-
-/* --- Animations --- */
-@keyframes fadeIn {
-  from {opacity: 0; transform: translateY(20px);}
-  to {opacity: 1; transform: translateY(0);}
+@media (max-width:900px){
+  .auth-shell{grid-template-columns:1fr}
+  .auth-art{display:none}
+  .auth-mobile-brand{display:inline-flex;margin-bottom:40px;animation:fade-down .8s var(--ease) both}
+  .auth-panel{justify-content:flex-start;padding-top:48px}
+  .auth-card h1{font-size:2rem}
 }

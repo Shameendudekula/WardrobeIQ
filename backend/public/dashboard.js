@@ -1,49 +1,63 @@
+/* WardrobeIQ — dashboard */
 function authFetch(url, options = {}) {
   const token = localStorage.getItem('token');
   if (!token) {
-    window.location.href = 'login.html';
+    window.location.href = '/login';
     return Promise.reject('No token');
   }
   options.headers = {
     ...options.headers,
     'Authorization': `Bearer ${token}`
   };
-  options.credentials = 'include';  // if backend requires cookies/session
   return fetch(url, options).then(res => {
     if (res.status === 401) {
       localStorage.removeItem('token');
-      window.location.href = 'login.html';
+      window.location.href = '/login';
       return Promise.reject('Unauthorized');
     }
     return res;
   });
 }
 
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
 
 document.addEventListener("DOMContentLoaded", () => {
-  const weatherInfo = document.getElementById("weatherInfo");
-  const weatherDetails = document.getElementById("weatherDetails");
-  const wardrobeItemsDiv = document.getElementById("wardrobeItems");
-  const suggestionsDiv = document.getElementById("suggestions");
-  const addItemForm = document.getElementById("addItemForm");
-  const voiceCommandBtn = document.getElementById("voiceCommandBtn");
-  const voiceStatus = document.getElementById("voiceStatus");
-  const languageSwitcher = document.getElementById("languageSwitcher");
-  const logoutBtn = document.getElementById("logoutBtn");
+  const { toast, animateCount, bindTilt, observeReveals } = window.WIQ;
+  const $ = (id) => document.getElementById(id);
 
-  logoutBtn.addEventListener('click', async () => {
+  const wardrobeItemsDiv = $("wardrobeItems");
+  const historyDiv = $("historyItems");
+  const addItemForm = $("addItemForm");
+  const languageSwitcher = $("languageSwitcher");
+
+  const state = { items: [], history: [], category: 'all', search: '', editingId: null };
+
+  /* ---------- User + greeting ---------- */
   try {
-    await authFetch('/api/auth/logout', { method: 'POST' });
-  } catch(err) {
-    console.warn('Logout failed:', err);
+    const payload = JSON.parse(atob(localStorage.getItem('token').split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (payload.exp && payload.exp * 1000 < Date.now()) throw new Error('expired');
+    const first = (payload.name || 'there').split(' ')[0];
+    $("userName").textContent = first;
+    $("avatar").textContent = first.charAt(0).toUpperCase();
+    $("avatar").title = payload.email || '';
+  } catch {
+    localStorage.removeItem('token');
+    window.location.replace('/login');
+    return;
   }
-  localStorage.removeItem('token');  // clear token on logout
-  location.href = '/login.html';
-});
+  const hour = new Date().getHours();
+  $("greeting").textContent = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  $("todayDate").textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 
+  $("logoutBtn").addEventListener('click', async () => {
+    try { await authFetch('/api/auth/logout', { method: 'POST' }); } catch (err) { console.warn('Logout failed:', err); }
+    localStorage.removeItem('token');
+    location.href = '/login';
+  });
 
-
-  // Long language list (popular + many)
+  /* ---------- Language ---------- */
   const LANGS = [
   ['en', 'English'],
   ['es', 'Español'],
@@ -475,281 +489,519 @@ da: {
 
 };
 
-
+  LANGS.forEach(([code, label]) => {
+    const o = document.createElement('option'); o.value = code; o.textContent = label;
+    languageSwitcher.appendChild(o);
+  });
 
   function applyUILanguage(code) {
-  const t = UI[code] || UI.en;
-  
-  // Text content
-  document.querySelectorAll('[data-i18n]').forEach(el => {
-    const key = el.getAttribute('data-i18n');
-    if (t[key]) el.textContent = t[key];
-  });
-
-  // Placeholders
-  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-    const key = el.getAttribute('data-i18n-placeholder');
-    if (t[key]) el.placeholder = t[key];
-  });
-}
-languageSwitcher.addEventListener('change', (e) => {
-  applyUILanguage(e.target.value);
-});
-
-applyUILanguage('en'); // default on page load
-  
-
-  
-
-  // Load wardrobe items (GET /api/wardrobe)
- async function loadWardrobe() {
-  wardrobeItemsDiv.textContent = "Loading...";
-  try {
-    const res = await authFetch('/api/wardrobe');
-    const items = await res.json();
-    if (!Array.isArray(items) || items.length === 0) wardrobeItemsDiv.innerHTML = '<em>No items yet</em>';
-    else wardrobeItemsDiv.innerHTML = items.map(renderCard).join('');
-  } catch (err) {
-    wardrobeItemsDiv.textContent = "Error loading wardrobe";
-    console.error(err);
-  }
-}
-
-
-
-  function renderCard(it) {
-    const last = it.lastWornDate ? new Date(it.lastWornDate).toLocaleDateString() : 'Never';
-    return `
-      <div class="item-card">
-        ${it.imageUrl ? `<img src="${it.imageUrl}" alt="${escapeHtml(it.itemName || it.name || '')}" style="width:100%;height:140px;object-fit:cover;border-radius:8px">` : ''}
-        <p><strong>${escapeHtml(it.itemName || it.name)}</strong></p>
-        <p>Category: ${escapeHtml(it.category)}</p>
-        <p>Last Worn: ${last}</p>
-        <div style="margin-top:6px">
-          <button onclick="markAsWorn('${it._id}')" class="btn-ghost">Mark worn</button>
-          <button onclick="deleteItem('${it._id}')" class="btn-ghost">Delete</button>
-        </div>
-      </div>
-    `;
-  }
-
-window.markAsWorn = async (id) => {
-  try {
-    const res = await authFetch(`/api/wardrobe/${id}/wear`, { method: "POST" });
-    if (!res.ok) throw new Error("Update failed");
-    await loadWardrobe();
-    await loadWeatherAndSuggestions();
-    await loadOutfitHistories();
-  } catch (err) {
-    alert(err.message);
-    console.error(err);
-  }
-};
-
-
-async function loadOutfitHistories() {
-  const historyDiv = document.getElementById("historyItems");
-  historyDiv.textContent = "Loading...";
-
-  try {
-    const res = await authFetch('/api/wardrobe/api/wardrobe/outfithistories');
-
-    // Always get text first, then try to parse JSON
-    const resText = await res.text();
-    let histories;
-
-    try {
-      histories = JSON.parse(resText);
-    } catch (parseErr) {
-      console.error("Failed to parse JSON. Response:", resText);
-      historyDiv.textContent = "Error loading history (invalid server response)";
-      return;
-    }
-
-    if (!Array.isArray(histories) || histories.length === 0) {
-      historyDiv.innerHTML = "<em>No history yet</em>";
-      return;
-    }
-
-    // Render history items safely
-    historyDiv.innerHTML = histories.map(h => `
-      <div class="item-card">
-        ${h.itemId?.imageUrl ? `<img src="${h.itemId.imageUrl}" style="width:100%;height:100px;object-fit:cover;border-radius:20px">` : ''}
-        <p><strong>${escapeHtml(h.itemId?.itemName || h.itemId?.name || '')}</strong></p>
-        <p>Category: ${escapeHtml(h.itemId?.category || '')}</p>
-        <p>Worn At: ${h.wornAt ? new Date(h.wornAt).toLocaleString() : 'Unknown'}</p>
-      </div>
-    `).join('');
-
-  } catch (err) {
-    console.error("Error fetching outfit histories:", err);
-    historyDiv.textContent = "Error loading history";
-  }
-}
-
-// Simple escapeHtml function to prevent XSS
-function escapeHtml(str) {
-  if (!str) return '';
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-
-
-
-window.deleteItem = async (id) => {
-  console.log('Deleting item id:', id);
-  if (!confirm('Delete this item?')) return;
-  try {
-    const res = await authFetch(`/api/wardrobe/${id}`, { method: 'DELETE' });
-    console.log('Delete response status:', res.status);
-    if (!res.ok) {
-      const errJson = await res.json().catch(() => ({}));
-      console.error('Delete failed:', errJson);
-      throw new Error(errJson.message || 'Delete failed');
-    }
-    alert('Deleted successfully');
-    await loadWardrobe();
-  } catch (err) {
-    alert('Error: ' + err.message);
-    console.error(err);
-  }
-};
-
-
-  // Add item using FormData
-  addItemForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const fd = new FormData(addItemForm);
-  try {
-    const res = await authFetch('/api/wardrobe', {
-      method: 'POST',
-      body: fd
+    const t = UI[code] || UI.en;
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      el.textContent = t[key] || UI.en[key] || el.textContent;
     });
-    const json = await res.json();
-    if (!res.ok) return alert(json.message || 'Upload failed');
-    addItemForm.reset();
-    await loadWardrobe();
-    await loadOutfitHistories();
-    await loadWeatherAndSuggestions();
-  } catch (err) {
-    alert('Network error');
-    console.error(err);
+    document.documentElement.lang = code;
+    document.documentElement.dir = ['ar', 'he'].includes(code) ? 'rtl' : 'ltr';
   }
-});
+  let savedLang = 'en';
+  try { savedLang = localStorage.getItem('lang') || 'en'; } catch {}
+  languageSwitcher.value = UI[savedLang] || LANGS.some(([c]) => c === savedLang) ? savedLang : 'en';
+  applyUILanguage(languageSwitcher.value);
+  languageSwitcher.addEventListener('change', (e) => {
+    applyUILanguage(e.target.value);
+    try { localStorage.setItem('lang', e.target.value); } catch {}
+  });
+  const t = (key) => (UI[languageSwitcher.value] || UI.en)[key] || UI.en[key];
 
-document.getElementById('applyFiltersBtn').addEventListener('click', () => {
-  loadWeatherAndSuggestions();  // or a dedicated function to fetch suggestions using current selects
-});
-['locationSelect', 'occasionSelect', 'purposeSelect'].forEach(id => {
-  const el = document.getElementById(id);
-  if(el) el.addEventListener('change', loadWeatherAndSuggestions);
-});
+  /* ---------- Helpers ---------- */
+  const DAY = 86400000;
+  const daysSince = (d) => d ? Math.floor((Date.now() - new Date(d).getTime()) / DAY) : null;
+  function wornLabel(date) {
+    const d = daysSince(date);
+    if (d === null) return { text: 'Never worn', cls: '' };
+    if (d === 0) return { text: 'Worn today', cls: 'fresh' };
+    if (d === 1) return { text: 'Worn yesterday', cls: 'fresh' };
+    if (d < 14) return { text: `Worn ${d} days ago`, cls: d < 7 ? 'fresh' : 'mid' };
+    return { text: `Not worn in ${d} days`, cls: 'old' };
+  }
+  const skeletons = (n) => Array.from({ length: n }, () => '<div class="skeleton"></div>').join('');
 
-  // Load weather -> send weather to suggestions endpoint (POST)
-  async function loadWeatherAndSuggestions() {
-  weatherInfo.textContent = UI[languageSwitcher.value]?.weatherLoading || 'Loading weather...';
-  if (!navigator.geolocation) { weatherInfo.textContent = 'Geolocation not supported'; return; }
+  /* ---------- Stats ---------- */
+  function updateStats() {
+    const cats = new Set(state.items.map(i => i.category));
+    const weekAgo = Date.now() - 7 * DAY;
+    const wornThisWeek = state.history.filter(h => new Date(h.wornAt).getTime() > weekAgo).length;
+    const idle = state.items.filter(i => { const d = daysSince(i.lastWornDate); return d === null || d >= 30; }).length;
+    animateCount($("statItems"), state.items.length);
+    animateCount($("statCategories"), cats.size);
+    animateCount($("statWeek"), wornThisWeek);
+    animateCount($("statIdle"), idle);
+  }
 
-  navigator.geolocation.getCurrentPosition(async pos => {
-    const lat = pos.coords.latitude, lon = pos.coords.longitude;
+  /* ---------- Wardrobe ---------- */
+  function renderCategoryFilters() {
+    const counts = {};
+    state.items.forEach(i => { counts[i.category] = (counts[i.category] || 0) + 1; });
+    if (state.category !== 'all' && !counts[state.category]) state.category = 'all';
+    const chips = [['all', state.items.length], ...Object.entries(counts).sort((a, b) => b[1] - a[1])];
+    $("categoryFilters").innerHTML = chips.map(([cat, n]) =>
+      `<button type="button" role="tab" class="fchip${state.category === cat ? ' active' : ''}" data-cat="${escapeHtml(cat)}" aria-selected="${state.category === cat}">${cat === 'all' ? 'All' : escapeHtml(cat)}<span class="count">${n}</span></button>`
+    ).join('');
+  }
+
+  function renderCard(it, i) {
+    const worn = wornLabel(it.lastWornDate);
+    const name = escapeHtml(it.itemName || it.name);
+    return `
+      <article class="item-card" data-tilt="5" data-id="${it._id}" style="--i:${i}">
+        <div class="img-wrap">
+          ${it.imageUrl ? `<img src="${escapeHtml(it.imageUrl)}" alt="${name}" loading="lazy">` : ''}
+          <span class="tag">${escapeHtml(it.category)}</span>
+          <div class="actions">
+            <button type="button" class="btn btn-primary btn-sm" data-action="wear" data-id="${it._id}">✓ Wear today</button>
+            <button type="button" class="btn btn-ghost btn-sm del" data-action="edit" data-id="${it._id}" aria-label="Edit ${name}">✏️</button>
+            <button type="button" class="btn btn-ghost btn-sm del" data-action="delete" data-id="${it._id}" aria-label="Delete ${name}">🗑</button>
+          </div>
+        </div>
+        <div class="item-body">
+          <strong title="${name}">${name}</strong>
+          <span class="worn ${worn.cls}">${worn.text}</span>
+        </div>
+      </article>`;
+  }
+
+  function renderWardrobe() {
+    const q = state.search.trim().toLowerCase();
+    const list = state.items.filter(i =>
+      (state.category === 'all' || i.category === state.category) &&
+      (!q || `${i.itemName} ${i.category}`.toLowerCase().includes(q))
+    );
+    if (!state.items.length) {
+      wardrobeItemsDiv.innerHTML = `<div class="empty"><span class="e-ico">👗</span><strong>Your wardrobe is empty</strong>Add your first piece to start getting outfit ideas.<br><button class="btn btn-primary" type="button" data-action="open-add">+ ${escapeHtml(t('addTitle'))}</button></div>`;
+    } else if (!list.length) {
+      wardrobeItemsDiv.innerHTML = `<div class="empty"><span class="e-ico">🔍</span><strong>No matches</strong>Try a different search or category.</div>`;
+    } else {
+      wardrobeItemsDiv.innerHTML = list.map(renderCard).join('');
+      bindTilt(wardrobeItemsDiv);
+    }
+  }
+
+  async function loadWardrobe() {
     try {
-      const weatherRes = await fetch(`/api/weather?lat=${lat}&lon=${lon}`);
+      const res = await authFetch('/api/wardrobe');
+      const items = await res.json();
+      state.items = Array.isArray(items) ? items : [];
+    } catch (err) {
+      console.error(err);
+      wardrobeItemsDiv.innerHTML = '<div class="empty"><span class="e-ico">⚠️</span><strong>Couldn\'t load your wardrobe</strong>Check your connection and refresh.</div>';
+      return;
+    }
+    renderCategoryFilters();
+    renderWardrobe();
+    updateStats();
+  }
+
+  $("categoryFilters").addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-cat]');
+    if (!chip) return;
+    state.category = chip.dataset.cat;
+    renderCategoryFilters();
+    renderWardrobe();
+  });
+  let searchTimer;
+  $("searchInput").addEventListener('input', (e) => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { state.search = e.target.value; renderWardrobe(); }, 150);
+  });
+
+  // Card + empty-state actions (event delegation)
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const { action, id } = btn.dataset;
+    if (action === 'wear') markAsWorn(id, btn);
+    else if (action === 'delete') deleteItem(id);
+    else if (action === 'edit') openEdit(id);
+    else if (action === 'open-add') { resetAddForm(); openModal($("addModal")); }
+  });
+
+  async function markAsWorn(id, btn) {
+    btn?.classList.add('loading');
+    try {
+      const res = await authFetch(`/api/wardrobe/${id}/wear`, { method: "POST" });
+      if (!res.ok) throw new Error("Couldn't mark as worn");
+      const { item } = await res.json();
+      toast(`${item.itemName} marked as worn today`, 'success');
+      await Promise.all([loadWardrobe(), loadOutfitHistories()]);
+      document.querySelector(`.item-card[data-id="${id}"]`)?.classList.add('just-worn');
+    } catch (err) {
+      toast(err.message || 'Something went wrong', 'error');
+      console.error(err);
+    } finally {
+      btn?.classList.remove('loading');
+    }
+  }
+
+  /* ---------- Delete with confirm modal ---------- */
+  let pendingDelete = null;
+  function deleteItem(id) {
+    const item = state.items.find(i => i._id === id);
+    pendingDelete = id;
+    $("confirmTitle").textContent = `Delete "${item?.itemName || 'this item'}"?`;
+    openModal($("confirmModal"));
+  }
+  $("confirmOk").addEventListener('click', async () => {
+    const id = pendingDelete;
+    if (!id) return;
+    const okBtn = $("confirmOk");
+    okBtn.classList.add('loading');
+    try {
+      const res = await authFetch(`/api/wardrobe/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || 'Delete failed');
+      }
+      closeModal($("confirmModal"));
+      const card = document.querySelector(`.item-card[data-id="${id}"]`);
+      if (card) {
+        card.classList.add('removing');
+        await new Promise(r => setTimeout(r, 420));
+      }
+      toast('Item deleted', 'success');
+      await Promise.all([loadWardrobe(), loadOutfitHistories(), loadRecentOutfits()]);
+    } catch (err) {
+      toast(err.message, 'error');
+      console.error(err);
+    } finally {
+      okBtn.classList.remove('loading');
+      pendingDelete = null;
+    }
+  });
+
+  /* ---------- Modals ---------- */
+  let lastFocus = null;
+  function openModal(modal) {
+    lastFocus = document.activeElement;
+    modal.hidden = false;
+    modal.classList.remove('closing');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => modal.querySelector('input:not([hidden]), .btn-danger, [data-close]')?.focus(), 50);
+  }
+  function closeModal(modal) {
+    if (modal.hidden) return;
+    modal.classList.add('closing');
+    setTimeout(() => {
+      modal.hidden = true;
+      modal.classList.remove('closing');
+      document.body.style.overflow = '';
+      lastFocus?.focus?.();
+    }, 240);
+  }
+  document.querySelectorAll('.modal').forEach(modal => {
+    modal.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeModal(modal); });
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') document.querySelectorAll('.modal:not([hidden])').forEach(closeModal);
+  });
+  $("openAddBtn").addEventListener('click', () => { resetAddForm(); openModal($("addModal")); });
+
+  /* ---------- Add item ---------- */
+  const fileInput = $("imageFile");
+  const dropzone = $("dropzone");
+  const previewImg = $("previewImg");
+
+  function setPreview(file) {
+    if (!file) {
+      previewImg.hidden = true;
+      previewImg.removeAttribute('src');
+      dropzone.classList.remove('has-img');
+      return;
+    }
+    if (!file.type.startsWith('image/')) { toast('Please choose an image file', 'error'); return; }
+    if (file.size > 4 * 1024 * 1024) { toast('Image must be under 4MB', 'error'); return; }
+    previewImg.src = URL.createObjectURL(file);
+    previewImg.hidden = false;
+    dropzone.classList.add('has-img');
+  }
+  fileInput.addEventListener('change', () => setPreview(fileInput.files[0]));
+  ['dragenter', 'dragover'].forEach(ev => dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.add('drag'); }));
+  ['dragleave', 'drop'].forEach(ev => dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.remove('drag'); }));
+  dropzone.addEventListener('drop', (e) => {
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    fileInput.files = dt.files;
+    setPreview(file);
+  });
+  addItemForm.querySelectorAll('.field input').forEach(input =>
+    input.addEventListener('input', () => input.parentElement.classList.remove('invalid')));
+
+  function resetAddForm() {
+    addItemForm.reset();
+    setPreview(null);
+    addItemForm.querySelectorAll('.field').forEach(f => f.classList.remove('invalid'));
+    state.editingId = null;
+    dropzone.hidden = false;
+    $("addItemTitle").textContent = t('addTitle');
+    addItemForm.querySelector('[type="submit"] span').textContent = t('addItemBtn');
+  }
+
+  // Edit an existing item's details (the photo stays the same)
+  function openEdit(id) {
+    const item = state.items.find(i => i._id === id);
+    if (!item) return;
+    resetAddForm();
+    state.editingId = id;
+    dropzone.hidden = true;
+    $("addItemTitle").textContent = 'Edit item';
+    addItemForm.querySelector('[type="submit"] span').textContent = 'Save changes';
+    $("itemName").value = item.itemName || '';
+    $("category").value = item.category || '';
+    $("colors").value = (item.colors || []).join(', ');
+    $("formality").value = item.formality || '';
+    $("pattern").value = item.pattern || '';
+    $("material").value = item.material || '';
+    $("notes").value = item.notes || '';
+    addItemForm.querySelectorAll('input[name="seasons"]').forEach(c => { c.checked = (item.seasons || []).includes(c.value); });
+    $("moreDetails").open = true;
+    openModal($("addModal"));
+  }
+  $("clearAdd").addEventListener('click', resetAddForm);
+
+  addItemForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const nameEl = $("itemName"), catEl = $("category");
+    if (!state.editingId && !fileInput.files[0]) { toast('Add a photo of the item', 'error'); dropzone.classList.add('drag'); setTimeout(() => dropzone.classList.remove('drag'), 600); return; }
+    for (const el of [nameEl, catEl]) {
+      if (!el.value.trim()) { el.parentElement.classList.add('invalid'); el.focus(); toast('Please fill in all fields', 'error'); return; }
+    }
+    const submitBtn = addItemForm.querySelector('[type="submit"]');
+    submitBtn.classList.add('loading');
+    try {
+      const editing = state.editingId;
+      let res;
+      if (editing) {
+        const fd = new FormData(addItemForm);
+        const body = {
+          itemName: fd.get('itemName'), category: fd.get('category'), colors: fd.get('colors') || '',
+          formality: fd.get('formality') || null, pattern: fd.get('pattern') || '', material: fd.get('material') || '',
+          seasons: fd.getAll('seasons'), notes: fd.get('notes') || '',
+        };
+        res = await authFetch(`/api/wardrobe/${editing}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      } else {
+        res = await authFetch('/api/wardrobe', { method: 'POST', body: new FormData(addItemForm) });
+      }
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.message || (editing ? 'Save failed' : 'Upload failed'));
+      toast(editing ? `${json.itemName} updated` : `${json.itemName} added to your wardrobe`, 'success');
+      resetAddForm();
+      closeModal($("addModal"));
+      if (!editing) state.category = 'all';
+      await loadWardrobe();
+    } catch (err) {
+      toast(err.message || 'Network error', 'error');
+      console.error(err);
+    } finally {
+      submitBtn.classList.remove('loading');
+    }
+  });
+
+  /* ---------- History ---------- */
+  async function loadOutfitHistories() {
+    try {
+      const res = await authFetch('/api/wardrobe/history');
+      const histories = await res.json();
+      state.history = Array.isArray(histories) ? histories.filter(h => h.itemId) : [];
+    } catch (err) {
+      console.error("Error fetching outfit histories:", err);
+      historyDiv.innerHTML = '<div class="empty"><strong>Couldn\'t load history</strong></div>';
+      return;
+    }
+    updateStats();
+
+    if (!state.history.length) {
+      historyDiv.innerHTML = '<div class="empty"><span class="e-ico">🗓️</span><strong>No outfits logged yet</strong>Tap "Wear today" on any item to start your history.</div>';
+      return;
+    }
+    const today = new Date().toDateString();
+    const yesterday = new Date(Date.now() - DAY).toDateString();
+    let html = '', lastDay = '', i = 0;
+    for (const h of state.history.slice(0, 40)) {
+      const d = new Date(h.wornAt);
+      const key = d.toDateString();
+      if (key !== lastDay) {
+        lastDay = key;
+        const label = key === today ? 'Today' : key === yesterday ? 'Yesterday' : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+        html += `<div class="tl-day">${label}</div>`;
+      }
+      html += `<div class="tl-item" style="--i:${i++}">
+        ${h.itemId.imageUrl ? `<img src="${escapeHtml(h.itemId.imageUrl)}" alt="" loading="lazy">` : ''}
+        <div><strong>${escapeHtml(h.itemId.itemName || '')}</strong><small>${escapeHtml(h.itemId.category || '')}</small></div>
+        <time datetime="${d.toISOString()}">${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</time>
+      </div>`;
+    }
+    historyDiv.innerHTML = html;
+  }
+
+  /* ---------- Weather ---------- */
+  let weatherPromise = null;
+  const weatherCard = $("weatherCard");
+
+  function weatherTheme(desc = '') {
+    const d = desc.toLowerCase();
+    if (/thunder|storm/.test(d)) return ['storm', '⛈️'];
+    if (/snow|sleet/.test(d)) return ['snowy', '❄️'];
+    if (/rain|drizzle|shower/.test(d)) return ['rainy', '🌧️'];
+    if (/clear/.test(d)) return [new Date().getHours() >= 19 || new Date().getHours() < 6 ? 'cloudy' : 'sunny', new Date().getHours() >= 19 || new Date().getHours() < 6 ? '🌙' : '☀️'];
+    if (/few clouds|scattered/.test(d)) return ['sunny', '⛅'];
+    if (/cloud|overcast|mist|haze|fog|smoke/.test(d)) return ['cloudy', '☁️'];
+    return ['', '⛅'];
+  }
+
+  function showWeatherTip({ temperature: temp, description = '' }) {
+    const d = description.toLowerCase();
+    let tip;
+    if (/thunder|storm/.test(d)) tip = 'Stormy out — stay in comfy layers, or grab a raincoat and boots if you head out ⚡';
+    else if (/rain|drizzle|shower/.test(d)) tip = 'Rain expected — grab a raincoat and skip the suede ☔';
+    else if (/snow|sleet/.test(d)) tip = 'Snow day — coat, boots and warm layers ❄️';
+    else if (temp >= 30) tip = 'Hot one — go for breathable cotton, light colours and sunglasses 🕶️';
+    else if (temp >= 25) tip = 'Warm and pleasant — tees, light kurtas and sneakers are perfect 👟';
+    else if (temp >= 15) tip = 'Mild weather — a shirt with jeans, plus a light layer for the evening 🧥';
+    else tip = 'Chilly — reach for a jacket, sweater or a warm kurta set 🧣';
+    const el = $("weatherTip");
+    el.innerHTML = `<strong>Stylist tip</strong>${escapeHtml(tip)}`;
+    el.hidden = false;
+  }
+
+  function getPosition() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) return reject(new Error('Geolocation not supported'));
+      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, maximumAge: 600000 });
+    });
+  }
+
+  async function loadWeather() {
+    $("weatherInfo").textContent = t('weatherLoading');
+    $("refreshWeather").classList.add('spin');
+    try {
+      const pos = await getPosition();
+      const weatherRes = await fetch(`/api/weather?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
+      if (!weatherRes.ok) throw new Error('Weather request failed');
       const weather = await weatherRes.json();
 
-      const city = weather.city || 'your area';
-      const description = weather.description || '';
-      const temp = weather.temperature || '';
-      const windSpeed = weather.windSpeed ?? '-';
-      const humidity = weather.humidity ?? '-';
-
-      weatherInfo.textContent = `${city} · ${description} · ${temp}°C`;
-      weatherDetails.textContent = `Wind: ${windSpeed} m/s • Humidity: ${humidity}`;
-
-      // Get user inputs for context
-      const location = document.getElementById('locationSelect').value || '';
-      const occasion = document.getElementById('occasionSelect').value || '';
-      const purpose = document.getElementById('purposeSelect').value || '';
-
-      // POST to suggestions with weather + context
-      const sugRes = await authFetch('/api/wardrobe/suggestions', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ 
-    temp: Number(temp), 
-    condition: description,
-    location,
-    occasion,
-    purpose
-  })
-});
-
-
-      const result = await sugRes.json();
-      const items = result.suggestions || [];
-      suggestionsDiv.innerHTML = items.length ? items.map(i =>
-        `<div class="item-card">${i.imageUrl ? `<img src="${i.imageUrl}" style="width:100%;height:120px;object-fit:cover;border-radius:8px">` : ''}<p>${escapeHtml(i.itemName || i.name)}</p></div>`
-      ).join('') : '<em>No suggestions</em>';
-
+      const [theme, icon] = weatherTheme(weather.description);
+      weatherCard.className = `weather-card in ${theme}`;
+      $("weatherIcon").textContent = icon;
+      $("weatherTemp").textContent = `${Math.round(weather.temperature)}°`;
+      $("weatherInfo").textContent = `${weather.city || 'Your area'} · ${weather.description || ''}`;
+      $("wWind").textContent = `${weather.windSpeed ?? '–'} m/s`;
+      $("wHumidity").textContent = `${weather.humidity ?? '–'}%`;
+      showWeatherTip(weather);
+      return weather;
     } catch (err) {
-      weatherInfo.textContent = 'Error loading weather';
-      suggestionsDiv.textContent = '';
+      console.error(err);
+      weatherCard.className = 'weather-card in cloudy';
+      $("weatherIcon").textContent = err.code === 1 ? '📍' : '🌤️';
+      $("weatherTemp").textContent = '--°';
+      $("weatherInfo").textContent = err.code === 1
+        ? 'Allow location access for weather-based suggestions'
+        : 'Weather unavailable — showing suggestions without it';
+      return null;
+    } finally {
+      $("refreshWeather").classList.remove('spin');
+    }
+  }
+  $("refreshWeather").addEventListener('click', () => { weatherPromise = loadWeather(); });
+
+  /* ---------- AI stylist entry + recent AI outfits (history only; no AI call here) ---------- */
+  const goToStylist = (q) => { location.href = `/stylist?q=${encodeURIComponent(q)}&auto=1`; };
+  $("askStylist").addEventListener('submit', (e) => {
+    e.preventDefault();
+    const q = $("askInput").value.trim();
+    if (q.length < 3) { toast('Tell the stylist what you need', 'error'); $("askInput").focus(); return; }
+    goToStylist(q);
+  });
+  document.querySelectorAll('[data-ask]').forEach(b => b.addEventListener('click', () => goToStylist(b.dataset.ask)));
+
+  async function loadRecentOutfits() {
+    const box = $("recentOutfits");
+    try {
+      const res = await authFetch('/api/stylist/outfits?limit=6');
+      const { outfits = [] } = await res.json();
+      box.innerHTML = outfits.length ? outfits.map((o, n) => `
+        <a class="s-card recent-card" href="/stylist#history" style="--i:${n}">
+          <div class="collage">${o.items.slice(0, 3).map(i => `<img src="${escapeHtml(i.item.imageUrl)}" alt="" loading="lazy">`).join('')}</div>
+          <div class="s-body"><strong>${o.saved ? '★ ' : ''}${escapeHtml(o.title)}</strong><small>${o.items.length} items${o.occasion ? ' · ' + escapeHtml(o.occasion) : ''}</small></div>
+        </a>`).join('')
+        : '<div class="empty"><span class="e-ico">🪄</span><strong>No AI outfits yet</strong>Ask the stylist above — it builds looks from your own clothes.</div>';
+    } catch (err) {
+      if (err !== 'Unauthorized') box.innerHTML = '<div class="empty"><strong>Couldn\'t load recent outfits</strong></div>';
       console.error(err);
     }
-  }, err => {
-    weatherInfo.textContent = 'Location permission required';
-    console.error(err);
-  }, { timeout: 10000 });
-}
+  }
 
-
-  // Voice command: simple filter / add prefill
-  voiceCommandBtn.addEventListener('click', () => {
-    if (!('SpeechRecognition' in window) && !('webkitSpeechRecognition' in window)) {
-      alert('Speech recognition not supported in this browser.');
-      return;
-    }
+  /* ---------- Voice commands ---------- */
+  const voiceBtn = $("voiceCommandBtn");
+  const voiceOverlay = $("voiceStatus");
+  const voiceText = voiceOverlay.querySelector('.voice-text');
+  voiceBtn.addEventListener('click', () => {
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Recognition) { toast('Voice commands need Chrome or Edge', 'error'); return; }
     const rec = new Recognition();
-    rec.lang = languageSwitcher.value || 'en-US';
-    voiceStatus.textContent = 'Listening...';
+    rec.lang = languageSwitcher.value === 'en' ? 'en-US' : languageSwitcher.value;
+    rec.interimResults = true;
+    voiceBtn.classList.add('listening');
+    voiceOverlay.hidden = false;
+    voiceText.textContent = 'Listening…';
+
+    const finish = (delay = 0) => setTimeout(() => {
+      voiceBtn.classList.remove('listening');
+      voiceOverlay.hidden = true;
+    }, delay);
+
     rec.onresult = async (ev) => {
-      const text = ev.results[0][0].transcript.toLowerCase();
-      voiceStatus.textContent = `Heard: ${text}`;
-      if (text.includes('show') && text.includes('jack')) {
-  // filter jackets
-  const res = await authFetch('/api/wardrobe?category=jackets');
-  const items = await res.json();
-  wardrobeItemsDiv.innerHTML = items.map(renderCard).join('');
-}
- else if (text.startsWith('add ')) {
-        const name = text.replace(/^add\s+/, '').trim();
-        document.getElementById('itemName').value = name;
-        document.getElementById('category').focus();
-      } else if (text.includes('suggest') || text.includes('outfit')) {
-        await loadWeatherAndSuggestions();
+      const result = ev.results[ev.results.length - 1];
+      const text = result[0].transcript.toLowerCase().trim();
+      voiceText.textContent = `"${text}"`;
+      if (!result.isFinal) return;
+
+      const show = text.match(/^(?:show|find)(?: me)?(?: my)? (.+)$/);
+      if (show) {
+        const cat = show[1].replace(/s$/, '');
+        $("searchInput").value = '';
+        state.search = cat;
+        state.category = 'all';
+        renderCategoryFilters();
+        renderWardrobe();
+        $("wardrobeSection").scrollIntoView({ behavior: 'smooth' });
+        toast(`Showing "${cat}"`, 'info');
+      } else if (text.startsWith('add ')) {
+        openModal($("addModal"));
+        $("itemName").value = text.replace(/^add\s+/, '');
+        setTimeout(() => $("category").focus(), 80);
+      } else if (text.includes('suggest') || text.includes('outfit') || text.includes('wear')) {
+        goToStylist(text);
       } else {
-        alert('Command not recognized: ' + text);
+        toast(`Didn't catch a command in "${text}"`, 'error');
       }
-      rec.stop();
-      voiceStatus.textContent = '';
+      finish(700);
     };
     rec.onerror = (e) => {
-      voiceStatus.textContent = 'Voice error: ' + (e.error || 'unknown');
+      voiceText.textContent = e.error === 'not-allowed' ? 'Microphone access denied' : 'Voice error: ' + (e.error || 'unknown');
       console.error(e);
+      finish(1500);
     };
+    rec.onend = () => { if (voiceBtn.classList.contains('listening')) finish(400); };
     rec.start();
   });
 
-  languageSwitcher.addEventListener('change', (ev) => applyUILanguage(ev.target.value));
-
-  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-
-  // initial load
+  /* ---------- Initial load ---------- */
+  wardrobeItemsDiv.innerHTML = skeletons(8);
+  historyDiv.innerHTML = skeletons(3);
+  observeReveals();
   loadWardrobe();
-  loadWeatherAndSuggestions();
-});  
+  weatherPromise = loadWeather();
+  loadRecentOutfits();
+  loadOutfitHistories();
+});

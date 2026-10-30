@@ -1,6 +1,7 @@
 // Selects and configures the AI provider from environment variables.
 //   AI_PROVIDER = anthropic (default) | openai | mock
 //   AI_MODEL    = model ID (defaults per provider)
+//   AI_FALLBACK_MODEL = model to retry on when the main one is rate limited or overloaded
 // Keys are read only here, on the server, and never sent to the client.
 import { createAnthropicProvider } from "./anthropicProvider.js";
 import { createOpenAIProvider } from "./openaiProvider.js";
@@ -9,6 +10,9 @@ import { aiErrors } from "./errors.js";
 
 // OpenAI-compatible servers host many models, so AI_MODEL must be set explicitly for that provider
 const DEFAULT_MODELS = { anthropic: "claude-opus-5-5", mock: "mock" };
+// Gemini's free tier rate-limits each model separately, so a lighter model usually still has quota
+const GEMINI_FALLBACK_MODEL = "gemini-3.5-flash-lite";
+const FALLBACK_CODES = new Set(["AI_RATE_LIMITED", "AI_UNAVAILABLE"]);
 
 let testOverride = null;
 let cached = null; // { signature, provider }
@@ -35,9 +39,12 @@ function readConfig() {
   }
   if (name === "openai") {
     const apiKey = (process.env.OPENAI_API_KEY || process.env.AI_API_KEY)?.trim();
+    const baseURL = process.env.AI_BASE_URL?.trim() || undefined;
+    const fallbackModel = process.env.AI_FALLBACK_MODEL?.trim()
+      || (baseURL?.includes("generativelanguage.googleapis.com") ? GEMINI_FALLBACK_MODEL : undefined);
     return {
-      name, model, timeoutMs, maxRetries, apiKey,
-      baseURL: process.env.AI_BASE_URL?.trim() || undefined,
+      name, model, timeoutMs, maxRetries, apiKey, baseURL,
+      fallbackModel: fallbackModel && fallbackModel !== model ? fallbackModel : undefined,
       jsonMode: process.env.AI_JSON_MODE === "json_object" ? "json_object" : "json_schema",
       missing: !apiKey ? "Set OPENAI_API_KEY (or AI_API_KEY) in the server environment."
         : !model ? "Set AI_MODEL to the model ID your OpenAI-compatible endpoint serves."
@@ -72,8 +79,26 @@ export function getProvider() {
 
   const provider =
     cfg.name === "anthropic" ? createAnthropicProvider(cfg)
-    : cfg.name === "openai" ? createOpenAIProvider(cfg)
+    : cfg.name === "openai" ? withFallback(createOpenAIProvider(cfg), cfg)
     : createMockProvider();
   cached = { signature, provider };
   return provider;
+}
+
+// Retries a request once on cfg.fallbackModel when the main model is rate limited or overloaded
+function withFallback(provider, cfg) {
+  if (!cfg.fallbackModel) return provider;
+  const fallback = createOpenAIProvider({ ...cfg, model: cfg.fallbackModel });
+  return {
+    ...provider,
+    async generateJSON(args) {
+      try {
+        return await provider.generateJSON(args);
+      } catch (err) {
+        if (!FALLBACK_CODES.has(err.code)) throw err;
+        console.warn(`AI ${err.code} on ${cfg.model}; retrying on ${cfg.fallbackModel}`);
+        return fallback.generateJSON(args);
+      }
+    },
+  };
 }

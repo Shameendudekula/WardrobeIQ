@@ -116,6 +116,7 @@ All configuration lives in `backend/.env` (never commit it). See [`backend/.env.
 | `ANTHROPIC_API_KEY` | for `anthropic` | Server-side only; never sent to the browser |
 | `AI_MODEL` | for `openai` | Model ID. Anthropic defaults to `claude-opus-5-5`; `claude-sonnet-5-5` or `claude-haiku-5-5` are cheaper |
 | `OPENAI_API_KEY`, `AI_BASE_URL` | for `openai` | Key and optional base URL of an OpenAI-compatible API |
+| `AI_FALLBACK_MODEL` | – | Model retried once when the main model is rate limited or overloaded (OpenAI-compatible provider). With a Gemini `AI_BASE_URL` it defaults to `gemini-3.5-flash-lite` |
 | `AI_JSON_MODE` | – | `json_object` for compatible models without strict JSON-schema support (responses are still validated server-side) |
 | `AI_EFFORT`, `AI_TIMEOUT_MS`, `AI_MAX_RETRIES` | – | Tuning (effort level, 60s timeout, 2 retries by default) |
 | `AI_REFUSAL_FALLBACK` | – | `true` by default: on supported Claude models, a refused request is retried server-side on a fallback model |

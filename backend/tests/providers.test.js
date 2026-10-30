@@ -6,6 +6,7 @@ import http from "node:http";
 import { z } from "zod";
 import { createAnthropicProvider } from "../services/ai/anthropicProvider.js";
 import { createOpenAIProvider } from "../services/ai/openaiProvider.js";
+import { getProvider } from "../services/ai/index.js";
 
 const schema = z.object({ answer: z.string() });
 let server, baseURL, handler, lastRequest;
@@ -157,5 +158,29 @@ describe("OpenAI-compatible provider", () => {
     await assert.rejects(make().generateJSON({ system: "s", prompt: "p", schema }), (e) => e.code === "AI_REFUSED");
     handler = (req, res) => json(res, 200, completion('{"ans', { finish_reason: "length" }));
     await assert.rejects(make().generateJSON({ system: "s", prompt: "p", schema }), (e) => e.code === "AI_BAD_OUTPUT");
+  });
+
+  test("retries on AI_FALLBACK_MODEL when the main model is rate limited", async (t) => {
+    const env = { AI_PROVIDER: "openai", AI_API_KEY: "sk-test", AI_MODEL: "main-model", AI_FALLBACK_MODEL: "lite-model", AI_BASE_URL: `${baseURL}/v1`, AI_MAX_RETRIES: "0" };
+    const saved = Object.fromEntries(Object.keys(env).map((k) => [k, process.env[k]]));
+    Object.assign(process.env, env);
+    t.after(() => { for (const [k, v] of Object.entries(saved)) v === undefined ? delete process.env[k] : (process.env[k] = v); });
+    t.mock.method(console, "warn", () => {});
+
+    const models = [];
+    handler = (req, res, r) => {
+      models.push(r.body.model);
+      if (r.body.model === "main-model") json(res, 429, { error: { message: "quota" } });
+      else json(res, 200, completion('{"answer":"from lite"}'));
+    };
+    const out = await getProvider().generateJSON({ system: "s", prompt: "p", schema });
+    assert.deepEqual(out.data, { answer: "from lite" });
+    assert.deepEqual(models, ["main-model", "lite-model"]);
+
+    // Other errors are not retried on the fallback
+    models.length = 0;
+    handler = (req, res, r) => { models.push(r.body.model); json(res, 401, { error: { message: "bad key" } }); };
+    await assert.rejects(getProvider().generateJSON({ system: "s", prompt: "p", schema }), (e) => e.code === "AI_AUTH_FAILED");
+    assert.deepEqual(models, ["main-model"]);
   });
 });

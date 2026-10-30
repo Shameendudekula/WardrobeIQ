@@ -38,6 +38,7 @@ function readConfig() {
     return {
       name, model, timeoutMs, maxRetries, apiKey,
       baseURL: process.env.AI_BASE_URL?.trim() || undefined,
+      jsonMode: process.env.AI_JSON_MODE === "json_object" ? "json_object" : "json_schema",
       missing: !apiKey ? "Set OPENAI_API_KEY (or AI_API_KEY) in the server environment."
         : !model ? "Set AI_MODEL to the model ID your OpenAI-compatible endpoint serves."
         : null,

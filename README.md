@@ -116,6 +116,7 @@ All configuration lives in `backend/.env` (never commit it). See [`backend/.env.
 | `ANTHROPIC_API_KEY` | for `anthropic` | Server-side only; never sent to the browser |
 | `AI_MODEL` | for `openai` | Model ID. Anthropic defaults to `claude-opus-5-5`; `claude-sonnet-5-5` or `claude-haiku-5-5` are cheaper |
 | `OPENAI_API_KEY`, `AI_BASE_URL` | for `openai` | Key and optional base URL of an OpenAI-compatible API |
+| `AI_JSON_MODE` | – | `json_object` for compatible models without strict JSON-schema support (responses are still validated server-side) |
 | `AI_EFFORT`, `AI_TIMEOUT_MS`, `AI_MAX_RETRIES` | – | Tuning (effort level, 60s timeout, 2 retries by default) |
 | `AI_REFUSAL_FALLBACK` | – | `true` by default: on supported Claude models, a refused request is retried server-side on a fallback model |
 | `AI_RATE_LIMIT_PER_HOUR` | – | AI requests per user per hour (default 30) |
@@ -141,6 +142,23 @@ AI_PROVIDER=openai
 OPENAI_API_KEY=...
 AI_MODEL=<model id your endpoint serves>
 # AI_BASE_URL=https://your-endpoint/v1
+```
+
+**Free AI providers (no payment card)**
+
+Several providers offer free-tier API keys with OpenAI-compatible endpoints, which work through the `openai` provider. Free tiers have tight rate limits, change often, and may allow the provider to use your prompts to improve their models, so check each provider's current terms.
+
+| Provider | Get a key | `AI_BASE_URL` |
+| --- | --- | --- |
+| Google Gemini | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | `https://generativelanguage.googleapis.com/v1beta/openai/` |
+| Groq | [console.groq.com/keys](https://console.groq.com/keys) | `https://api.groq.com/openai/v1` |
+
+```env
+AI_PROVIDER=openai
+OPENAI_API_KEY=<free key>
+AI_BASE_URL=<from the table>
+AI_MODEL=<a model ID listed in that provider's console>
+# AI_JSON_MODE=json_object   # if requests fail with "provider error 400" (model lacks strict JSON-schema support)
 ```
 
 **Mock (offline UI development only)**: `AI_PROVIDER=mock`. Responses are deterministic placeholders, clearly labelled as not AI-generated.

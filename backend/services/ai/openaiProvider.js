@@ -16,7 +16,10 @@ function mapError(err) {
   return aiErrors.unavailable(err);
 }
 
-export function createOpenAIProvider({ apiKey, model, baseURL, timeoutMs, maxRetries }) {
+// jsonMode: "json_schema" (strict structured outputs) or "json_object" (schema given in the
+// instructions) for compatible providers/models that don't support strict schemas.
+// Either way the response is validated server-side afterwards.
+export function createOpenAIProvider({ apiKey, model, baseURL, timeoutMs, maxRetries, jsonMode = "json_schema" }) {
   const client = new OpenAI({ apiKey, baseURL: baseURL || undefined, timeout: timeoutMs, maxRetries });
 
   return {
@@ -30,16 +33,22 @@ export function createOpenAIProvider({ apiKey, model, baseURL, timeoutMs, maxRet
           ]
         : prompt;
 
+      const format = zodResponseFormat(schema, "wardrobeiq_response");
+      const systemContent = jsonMode === "json_object"
+        ? `${system}\n\nRespond with a single JSON object that matches this JSON Schema exactly:\n${JSON.stringify(format.json_schema.schema)}`
+        : system;
+
       let res;
       try {
         res = await client.chat.completions.create({
           model,
-          max_completion_tokens: maxTokens,
+          // OpenAI itself wants max_completion_tokens; most other compatible servers only accept max_tokens
+          ...(baseURL ? { max_tokens: maxTokens } : { max_completion_tokens: maxTokens }),
           messages: [
-            { role: "system", content: system },
+            { role: "system", content: systemContent },
             { role: "user", content: userContent },
           ],
-          response_format: zodResponseFormat(schema, "wardrobeiq_response"),
+          response_format: jsonMode === "json_object" ? { type: "json_object" } : format,
         });
       } catch (err) {
         throw mapError(err);

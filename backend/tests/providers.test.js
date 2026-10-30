@@ -132,6 +132,22 @@ describe("OpenAI-compatible provider", () => {
     assert.equal(lastRequest.body.messages[0].role, "system");
   });
 
+  test("uses max_tokens for third-party compatible servers and max_completion_tokens for OpenAI", async () => {
+    handler = (req, res) => json(res, 200, completion('{"answer":"ok"}'));
+    await make().generateJSON({ system: "s", prompt: "p", schema, maxTokens: 1234 });
+    assert.equal(lastRequest.body.max_tokens, 1234);
+    assert.equal(lastRequest.body.max_completion_tokens, undefined);
+  });
+
+  test("json_object mode puts the schema in the instructions for providers without strict schemas", async () => {
+    handler = (req, res) => json(res, 200, completion('{"answer":"ok"}'));
+    const out = await make({ jsonMode: "json_object" }).generateJSON({ system: "sys", prompt: "p", schema });
+    assert.deepEqual(out.data, { answer: "ok" });
+    assert.deepEqual(lastRequest.body.response_format, { type: "json_object" });
+    assert.match(lastRequest.body.messages[0].content, /^sys\n\nRespond with a single JSON object/);
+    assert.match(lastRequest.body.messages[0].content, /"answer"/);
+  });
+
   test("maps errors, refusals and truncation", async () => {
     handler = (req, res) => json(res, 429, { error: { message: "slow down" } });
     await assert.rejects(make().generateJSON({ system: "s", prompt: "p", schema }), (e) => e.code === "AI_RATE_LIMITED");

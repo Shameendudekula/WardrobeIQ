@@ -25,7 +25,7 @@ function readConfig() {
   const model = process.env.AI_MODEL?.trim() || DEFAULT_MODELS[name];
 
   if (name === "anthropic") {
-    const apiKey = process.env.ANTHROPIC_API_KEY || process.env.AI_API_KEY;
+    const apiKey = (process.env.ANTHROPIC_API_KEY || process.env.AI_API_KEY)?.trim();
     return {
       name, model, timeoutMs, maxRetries, apiKey,
       effort: process.env.AI_EFFORT?.trim() || undefined,
@@ -34,7 +34,7 @@ function readConfig() {
     };
   }
   if (name === "openai") {
-    const apiKey = process.env.OPENAI_API_KEY || process.env.AI_API_KEY;
+    const apiKey = (process.env.OPENAI_API_KEY || process.env.AI_API_KEY)?.trim();
     return {
       name, model, timeoutMs, maxRetries, apiKey,
       baseURL: process.env.AI_BASE_URL?.trim() || undefined,

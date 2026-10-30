@@ -64,6 +64,11 @@ app.get("*", (req, res) => {
 // Error handler: one JSON shape for every error ({ code, message, ...details })
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
+  if (err instanceof AIError) {
+    // Log the provider's status and message (never keys or prompts) so failures are diagnosable
+    const c = err.cause;
+    console.warn(`AI error ${err.code}${c?.status ? ` (provider HTTP ${c.status})` : ""}: ${String(c?.message || err.message).slice(0, 300)}`);
+  }
   if (err instanceof AIError || err instanceof HttpError) {
     if (err.retryAfter) res.set("Retry-After", String(err.retryAfter));
     return res.status(err.status).json({ code: err.code, message: err.message, ...(err.details && { details: err.details }) });

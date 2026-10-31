@@ -6,6 +6,8 @@
 
 WardrobeIQ is a full-stack web app that digitises your wardrobe and uses a large language model to style outfits **only from the clothes you actually own**. You describe the moment in plain language, for example *"something for a university presentation tomorrow"*. The stylist then combines your wardrobe, the weather forecast, your style profile and your past feedback into several outfits and explains each one.
 
+**Live demo:** https://wardrobe-iq.vercel.app (runs on the free Google Gemini tier)
+
 ---
 
 ## 1. Features
@@ -22,7 +24,8 @@ WardrobeIQ is a full-stack web app that digitises your wardrobe and uses a large
 | Save outfits, 👍/👎, feedback tags and comments; recent feedback is fed into future prompts | ✅ | ✅ (as context) |
 | Style profile (favourite/disliked colours, styles, fit, formality, goals); editable and deletable | ✅ | ✅ (as context) |
 | Weather: current conditions, plus a 5-day forecast for future dates | ✅ | context only |
-| Voice commands, 32-language UI on the dashboard | ✅ | – (browser speech API) |
+| Voice commands on the dashboard (Chrome/Edge): "show my shirts", "add blue denim jacket", "what should I wear today" | ✅ | – (browser speech API; outfit requests go to the AI stylist) |
+| 32-language UI on the dashboard | ✅ | – |
 | AI image tagging on upload, natural-language wardrobe search, insights, packing assistant, outfit calendar | ❌ Not yet. See [Roadmap](#16-known-limitations--roadmap) | – |
 
 > **Honesty note:** the model is **not** fine-tuned or trained on your data. "Learning from feedback" means your recent ratings and tags are included as context in the next request.
@@ -162,6 +165,19 @@ AI_MODEL=<a model ID listed in that provider's console>
 # AI_JSON_MODE=json_object   # if requests fail with "provider error 400" (model lacks strict JSON-schema support)
 ```
 
+The live demo uses this Gemini setup, which needs no billing:
+
+```env
+AI_PROVIDER=openai
+AI_API_KEY=<key from aistudio.google.com/apikey>
+AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+AI_MODEL=gemini-3.8-flash
+```
+
+- A request takes about 30 seconds.
+- When the main model is rate-limited (429), the server retries once on `gemini-3.5-flash-lite`, which has its own free quota. Set `AI_FALLBACK_MODEL` to change that.
+- Models marked "Paid" in AI Studio need billing enabled.
+
 **Mock (offline UI development only)**: `AI_PROVIDER=mock`. Responses are deterministic placeholders, clearly labelled as not AI-generated.
 
 Check the configuration on startup: the server logs `🤖 AI stylist: anthropic (claude-opus-5-5)`, or the reason it isn't configured.
@@ -192,7 +208,7 @@ All tests run offline against an in-memory MongoDB and need no API keys. AI call
 | Suite | Covers |
 | --- | --- |
 | `tests/unit.test.js` | AI response validation, ref resolution, forged/unknown IDs, duplicates, must-keep constraints, malformed output, forecast summarising, image sniffing, provider configuration |
-| `tests/providers.test.js` | Real Anthropic and OpenAI SDKs against a fake server: structured-output request shape, refusal fallback header, images, 429/401/5xx/timeout mapping, bounded retries, refusals, truncation |
+| `tests/providers.test.js` | Real Anthropic and OpenAI SDKs against a fake server: structured-output request shape, refusal fallback header, images, 429/401/5xx/timeout mapping, bounded retries, refusals, truncation, fallback model on rate limits |
 | `tests/api.test.js` | Auth, wardrobe CRUD and ownership, upload validation, stylist success, empty wardrobe, missing credentials, timeouts, rate limits, cross-user access, regeneration, feedback, profile |
 | `tests/frontend.test.js` | Stylist rendering: real item images, XSS escaping, blocked external image URLs, loading and error states, accessible controls, mock labelling |
 
@@ -262,10 +278,12 @@ Images are stored in MongoDB, so no persistent disk is needed. The frontend is s
 
 ## 16. Known limitations & roadmap
 
-- **No live AI verification here:** the provider integrations are tested against a fake server that mimics the APIs, not against the paid APIs. Run one real request after adding your key.
+- **Live AI verification:** automated tests use a fake server that mimics the provider APIs. The Gemini free-tier setup was also verified end to end on the live demo. Anthropic and OpenAI were not, because they need paid keys. Run one real request after adding your key.
+- **Free-tier limits:** Gemini's free quota is small. When both models are rate-limited, the stylist returns `503 AI_RATE_LIMITED` until the quota resets.
 - **Single-turn requests:** each request is independent (plus modify/regenerate); there is no multi-turn chat memory yet.
 - **Not yet built:** AI image tagging on upload, natural-language wardrobe search, wardrobe insights page, packing assistant, outfit calendar, shopping-gap suggestions beyond "missing items".
 - **Rate limits are in-memory:** they reset on restart and aren't shared across serverless instances. Use a shared store such as Redis for strict limits at scale.
 - **Images are public by ID** so `<img>` tags work without auth headers. MongoDB ObjectIds are hard to guess but not secret tokens; signed URLs would be the next step for private photos.
 - **Translations:** the dashboard has 32 languages; the new AI Stylist page is English-only so far.
+- **Voice commands** are dashboard-only, need a browser with the Web Speech API (Chrome/Edge), and understand only the phrasings listed under Features.
 - **Legacy categories:** items created before this change may carry the old normalised categories (for example "formal shirt" for "shirt"); edit them to correct.

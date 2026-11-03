@@ -12,8 +12,20 @@ function mapError(err) {
   if (err instanceof OpenAI.AuthenticationError || err instanceof OpenAI.PermissionDeniedError) return aiErrors.authFailed(err);
   if (err instanceof OpenAI.APIConnectionError) return aiErrors.unavailable(err);
   if (err instanceof OpenAI.InternalServerError) return aiErrors.unavailable(err);
-  if (err instanceof OpenAI.APIError) return aiErrors.badOutput(`provider error ${err.status}`, err);
+  if (err instanceof OpenAI.APIError) {
+    const reason = providerReason(err);
+    // Gemini answers an invalid key with 400 INVALID_ARGUMENT instead of 401
+    if (err.status === 400 && /api key/i.test(reason)) return aiErrors.authFailed(err);
+    return aiErrors.badOutput(`provider error ${err.status}${reason ? `: ${reason}` : ""}`, err);
+  }
   return aiErrors.unavailable(err);
+}
+
+// The provider's own error message (Gemini wraps it in an array), shortened for display
+function providerReason(err) {
+  const body = Array.isArray(err.error) ? err.error[0]?.error : err.error;
+  const msg = typeof body?.message === "string" ? body.message : "";
+  return msg.replace(/\s+/g, " ").trim().slice(0, 200);
 }
 
 // jsonMode: "json_schema" (strict structured outputs) or "json_object" (schema given in the

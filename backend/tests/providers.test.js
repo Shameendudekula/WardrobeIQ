@@ -158,6 +158,13 @@ describe("OpenAI-compatible provider", () => {
     await assert.rejects(make().generateJSON({ system: "s", prompt: "p", schema }), (e) => e.code === "AI_REFUSED");
     handler = (req, res) => json(res, 200, completion('{"ans', { finish_reason: "length" }));
     await assert.rejects(make().generateJSON({ system: "s", prompt: "p", schema }), (e) => e.code === "AI_BAD_OUTPUT");
+    // Gemini reports an invalid key as a 400 with the body wrapped in an array
+    handler = (req, res) => json(res, 400, [{ error: { code: 400, message: "Please pass a valid API key", status: "INVALID_ARGUMENT" } }]);
+    await assert.rejects(make().generateJSON({ system: "s", prompt: "p", schema }), (e) => e.code === "AI_AUTH_FAILED");
+    // Other 400s carry the provider's reason so it shows up in the UI and logs
+    handler = (req, res) => json(res, 400, { error: { message: "Unsupported response_format" } });
+    await assert.rejects(make().generateJSON({ system: "s", prompt: "p", schema }),
+      (e) => e.code === "AI_BAD_OUTPUT" && e.message.includes("provider error 400: Unsupported response_format"));
   });
 
   test("retries on AI_FALLBACK_MODEL when the main model is rate limited", async (t) => {
